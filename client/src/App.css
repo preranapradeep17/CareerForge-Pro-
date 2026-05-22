@@ -42,6 +42,17 @@ input {
   border-radius: 8px;
 }
 
+textarea,
+select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem;
+  margin-bottom: 0.7rem;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  font: inherit;
+}
+
 button {
   border: 0;
   border-radius: 8px;
@@ -82,4 +93,12 @@ button:disabled {
   margin-top: 1rem;
   color: #0f172a;
   font-weight: 500;
+}
+
+.resume-grid {
+  margin-top: 1rem;
+}
+
+.preview p {
+  margin: 0.45rem 0;
 }
