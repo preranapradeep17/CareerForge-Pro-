@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import './App.css';
 import {
@@ -10,6 +10,7 @@ import {
 import { setTemplate, updateResumeField } from './store/resumeSlice';
 
 const API_BASE = 'http://localhost:5000/api';
+const AUTO_SAVE_DELAY_MS = 1500;
 
 const initialRegister = { name: '', email: '', password: '' };
 const initialLogin = { email: '', password: '' };
@@ -24,6 +25,16 @@ function App() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [resumeId, setResumeId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [saveError, setSaveError] = useState('');
+
+  const hasResumeContent = useMemo(
+    () => Object.values(resumeData).some((value) => value.trim().length > 0),
+    [resumeData]
+  );
+
   useEffect(() => {
     if (!token) {
       return;
@@ -31,6 +42,74 @@ function App() {
 
     fetchProfile(token);
   }, [token]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !token || !hasResumeContent) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      saveResume();
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [resumeData, template, atsScore, isLoggedIn, token, hasResumeContent]);
+
+  const mapResumePayload = () => ({
+    personalInfo: {
+      fullName: resumeData.fullName,
+      summary: resumeData.summary,
+      email: '',
+      phone: '',
+      location: '',
+    },
+    experience: [],
+    education: [],
+    skills: resumeData.skills
+      .split(',')
+      .map((skill) => skill.trim())
+      .filter(Boolean),
+    projects: [],
+    atsScore,
+    template,
+    targetJD: resumeData.title,
+  });
+
+  const saveResume = async () => {
+    const payload = mapResumePayload();
+
+    setIsSaving(true);
+    setSaveError('');
+
+    try {
+      const endpoint = resumeId ? `${API_BASE}/resume/${resumeId}` : `${API_BASE}/resume`;
+      const method = resumeId ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to auto-save resume');
+      }
+
+      if (!resumeId && data.resume?._id) {
+        setResumeId(data.resume._id);
+      }
+
+      setLastSavedAt(new Date());
+    } catch (error) {
+      setSaveError(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleRegisterChange = (event) => {
     const { name, value } = event.target;
@@ -129,6 +208,9 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem(TOKEN_KEY);
     dispatch(clearCredentials());
+    setResumeId(null);
+    setLastSavedAt(null);
+    setSaveError('');
     setMessage('Logged out and token cleared.');
   };
 
@@ -140,10 +222,8 @@ function App() {
   return (
     <main className="app-shell">
       <header>
-        <h1>Day 4: React + Redux</h1>
-        <p>
-          Centralized frontend state with Redux slices for authentication and resume data.
-        </p>
+        <h1>Day 5: Split-Screen Editor</h1>
+        <p>Live preview with Redux-driven updates and debounced auto-save.</p>
       </header>
 
       <section className="grid">
@@ -221,8 +301,8 @@ function App() {
         </div>
       </section>
 
-      <section className="grid resume-grid">
-        <form className="card">
+      <section className="split-editor">
+        <form className="card editor-pane">
           <h2>Resume Builder Form</h2>
           <input
             type="text"
@@ -243,7 +323,7 @@ function App() {
             placeholder="Summary"
             value={resumeData.summary}
             onChange={handleResumeChange}
-            rows={4}
+            rows={5}
           />
           <input
             type="text"
@@ -262,10 +342,22 @@ function App() {
             <option value="modern">Modern</option>
             <option value="minimal">Minimal</option>
           </select>
+
+          <p className="autosave-state">
+            {isLoggedIn
+              ? isSaving
+                ? 'Auto-saving...'
+                : saveError
+                  ? `Auto-save failed: ${saveError}`
+                  : lastSavedAt
+                    ? `Saved at ${lastSavedAt.toLocaleTimeString()}`
+                    : 'Start typing to auto-save'
+              : 'Login to enable auto-save'}
+          </p>
         </form>
 
-        <article className="card preview">
-          <h2>Resume Preview (Redux State)</h2>
+        <article className="card preview-pane">
+          <h2>Live Preview</h2>
           <p><strong>Name:</strong> {resumeData.fullName || 'Your name'}</p>
           <p><strong>Title:</strong> {resumeData.title || 'Your title'}</p>
           <p><strong>Summary:</strong> {resumeData.summary || 'Your summary appears here'}</p>
