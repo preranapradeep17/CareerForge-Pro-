@@ -9,6 +9,17 @@ const initialState = {
   },
   atsScore: 0,
   template: 'classic',
+  // ─── AI State ─────────────────────────────────────────────────────────────
+  ai: {
+    loading: false,
+    error: '',
+    // improve-summary result
+    summaryResult: null,   // { improvedSummary, tips[] }
+    // ats-analysis result
+    atsResult: null,       // { atsScore, missingKeywords[], suggestions[], overallFeedback }
+    // suggest-skills result
+    skillsResult: null,    // { suggestedSkills[{ skill, why }], reason }
+  },
 };
 
 const computeAtsScore = (data) => {
@@ -30,8 +41,44 @@ const resumeSlice = createSlice({
       state.template = action.payload;
     },
     resetResume: () => initialState,
+
+    // ─── AI Actions ──────────────────────────────────────────────────────────
+    setAiLoading: (state, action) => {
+      state.ai.loading = action.payload;
+      if (action.payload) state.ai.error = '';
+    },
+    setAiError: (state, action) => {
+      state.ai.error = action.payload;
+      state.ai.loading = false;
+    },
+    setSummaryResult: (state, action) => {
+      state.ai.summaryResult = action.payload;
+      state.ai.loading = false;
+    },
+    setAtsResult: (state, action) => {
+      state.ai.atsResult = action.payload;
+      state.ai.loading = false;
+    },
+    setSkillsResult: (state, action) => {
+      state.ai.skillsResult = action.payload;
+      state.ai.loading = false;
+    },
+    clearAiResults: (state) => {
+      state.ai = initialState.ai;
+    },
   },
 });
 
-export const { updateResumeField, setTemplate, resetResume } = resumeSlice.actions;
+export const {
+  updateResumeField,
+  setTemplate,
+  resetResume,
+  setAiLoading,
+  setAiError,
+  setSummaryResult,
+  setAtsResult,
+  setSkillsResult,
+  clearAiResults,
+} = resumeSlice.actions;
+
 export default resumeSlice.reducer;
