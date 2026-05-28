@@ -15,6 +15,7 @@ import {
   setSummaryResult,
   setAtsResult,
   setSkillsResult,
+  setJdResult,
 } from './store/resumeSlice';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -55,7 +56,7 @@ function App() {
 
   // AI panel state
   const [jobDescription, setJobDescription] = useState('');
-  const [activeAiTab, setActiveAiTab] = useState('summary'); // 'summary' | 'ats' | 'skills'
+  const [activeAiTab, setActiveAiTab] = useState('summary'); // 'summary' | 'ats' | 'skills' | 'jd'
 
   const hasResumeContent = useMemo(
     () => Object.values(resumeData).some((value) => value.trim().length > 0),
@@ -253,6 +254,17 @@ function App() {
     }
   };
 
+  const handleAnalyzeJD = async () => {
+    if (!jobDescription.trim()) return setMessage('Paste a job description first.');
+    dispatch(setAiLoading(true));
+    try {
+      const result = await aiPost('analyze-jd', { jobDescription }, token);
+      dispatch(setJdResult(result));
+    } catch (err) {
+      dispatch(setAiError(err.message));
+    }
+  };
+
   // Apply an AI-suggested skill to the skills field
   const handleAddSuggestedSkill = (skill) => {
     const current = resumeData.skills
@@ -275,9 +287,9 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div className="header-badge">DAY 6</div>
+        <div className="header-badge">DAY 7</div>
         <h1>Gemini AI Integration</h1>
-        <p>Centralized prompt templates · Gemini 1.5 Flash · Structured JSON responses</p>
+        <p>ATS Analysis + JD Keyword Extraction · Gemini 1.5 Flash · Structured JSON responses</p>
       </header>
 
       {/* Auth Grid */}
@@ -409,6 +421,14 @@ function App() {
                 onClick={() => setActiveAiTab('skills')}
               >
                 💡 Suggest Skills
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeAiTab === 'jd'}
+                className={`ai-tab ${activeAiTab === 'jd' ? 'ai-tab--active' : ''}`}
+                onClick={() => setActiveAiTab('jd')}
+              >
+                🧠 JD Analyzer
               </button>
             </div>
 
@@ -559,6 +579,54 @@ function App() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── Tab: JD Analyzer ──────────────────────────────────── */}
+            {activeAiTab === 'jd' && (
+              <div className="ai-tab-content" role="tabpanel">
+                <p className="ai-helper">
+                  Extract ATS-focused keywords from a job description and map them into resume-ready tag groups.
+                </p>
+                <textarea
+                  className="ai-jd-textarea"
+                  placeholder="Paste job description here..."
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  rows={6}
+                />
+                <button
+                  className="ai-action-btn"
+                  onClick={handleAnalyzeJD}
+                  disabled={ai.loading}
+                >
+                  {ai.loading ? <span className="spinner" /> : '🧠'} Extract Keywords
+                </button>
+
+                {ai.jdResult && (
+                  <div className="ai-result-card">
+                    {[
+                      ['Hard Skills', ai.jdResult.hardSkills, 'chip--hard'],
+                      ['Soft Skills', ai.jdResult.softSkills, 'chip--soft'],
+                      ['Action Verbs', ai.jdResult.actionVerbs, 'chip--verb'],
+                      ['Domain', ai.jdResult.domain, 'chip--domain'],
+                      ['Seniority Level', ai.jdResult.seniorityLevel, 'chip--level'],
+                    ].map(([label, tags, className]) => (
+                      <div key={label} className="ai-keywords ai-keywords--section">
+                        <div className="ai-result-label">{label}</div>
+                        <div className="chip-row">
+                          {Array.isArray(tags) && tags.length > 0 ? (
+                            tags.map((tag, i) => (
+                              <span key={`${label}-${i}`} className={`chip ${className}`}>{tag}</span>
+                            ))
+                          ) : (
+                            <span className="chip chip--empty">No clear tags found</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

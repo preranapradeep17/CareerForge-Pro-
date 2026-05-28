@@ -4,6 +4,7 @@ const { generateJSON } = require('../services/geminiService');
 const { buildResumeSummaryPrompt } = require('../prompts/resumeSummaryPrompt');
 const { buildAtsAnalysisPrompt } = require('../prompts/atsAnalysisPrompt');
 const { buildSkillsSuggestionPrompt } = require('../prompts/skillsSuggestionPrompt');
+const { buildJdAnalysisPrompt } = require('../prompts/jdAnalysisPrompt');
 
 const router = express.Router();
 
@@ -80,6 +81,27 @@ router.post('/suggest-skills', protect, async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('[AI] suggest-skills error:', error.message);
+    return res.status(500).json({ message: 'AI request failed', error: error.message });
+  }
+});
+
+// ─── POST /api/ai/analyze-jd ────────────────────────────────────────────────
+// Body: { jobDescription: string }
+// Returns: { hardSkills: string[], softSkills: string[], actionVerbs: string[], domain: string[], seniorityLevel: string[] }
+router.post('/analyze-jd', protect, async (req, res) => {
+  try {
+    const { jobDescription } = req.body;
+
+    if (!jobDescription || typeof jobDescription !== 'string' || jobDescription.trim().length === 0) {
+      return res.status(400).json({ message: 'jobDescription is required and must be a non-empty string' });
+    }
+
+    const prompt = buildJdAnalysisPrompt({ jobDescription: jobDescription.trim() });
+    const result = await generateJSON(prompt);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[AI] analyze-jd error:', error.message);
     return res.status(500).json({ message: 'AI request failed', error: error.message });
   }
 });
