@@ -5,6 +5,7 @@ const { buildResumeSummaryPrompt } = require('../prompts/resumeSummaryPrompt');
 const { buildAtsAnalysisPrompt } = require('../prompts/atsAnalysisPrompt');
 const { buildSkillsSuggestionPrompt } = require('../prompts/skillsSuggestionPrompt');
 const { buildJdAnalysisPrompt } = require('../prompts/jdAnalysisPrompt');
+const { buildBulletRewritePrompt } = require('../prompts/bulletRewritePrompt');
 
 const router = express.Router();
 
@@ -102,6 +103,38 @@ router.post('/analyze-jd', protect, async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('[AI] analyze-jd error:', error.message);
+    return res.status(500).json({ message: 'AI request failed', error: error.message });
+  }
+});
+
+// ─── POST /api/ai/rewrite-bullet ────────────────────────────────────────────
+// Body: { originalBullet: string, jobDescription?: string, targetKeywords?: string[] | string }
+// Returns: { rewrittenBullet: string, keywordsUsed: string[], improvementNotes: string[] }
+router.post('/rewrite-bullet', protect, async (req, res) => {
+  try {
+    const { originalBullet, jobDescription, targetKeywords } = req.body;
+
+    if (!originalBullet || typeof originalBullet !== 'string' || originalBullet.trim().length === 0) {
+      return res.status(400).json({ message: 'originalBullet is required and must be a non-empty string' });
+    }
+
+    let keywordsArray = [];
+    if (Array.isArray(targetKeywords)) {
+      keywordsArray = targetKeywords.map((k) => String(k).trim()).filter(Boolean);
+    } else if (typeof targetKeywords === 'string') {
+      keywordsArray = targetKeywords.split(',').map((k) => k.trim()).filter(Boolean);
+    }
+
+    const prompt = buildBulletRewritePrompt({
+      originalBullet: originalBullet.trim(),
+      jobDescription: typeof jobDescription === 'string' ? jobDescription.trim() : '',
+      targetKeywords: keywordsArray,
+    });
+    const result = await generateJSON(prompt);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[AI] rewrite-bullet error:', error.message);
     return res.status(500).json({ message: 'AI request failed', error: error.message });
   }
 });

@@ -16,6 +16,7 @@ import {
   setAtsResult,
   setSkillsResult,
   setJdResult,
+  setBulletResult,
 } from './store/resumeSlice';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -56,7 +57,9 @@ function App() {
 
   // AI panel state
   const [jobDescription, setJobDescription] = useState('');
-  const [activeAiTab, setActiveAiTab] = useState('summary'); // 'summary' | 'ats' | 'skills' | 'jd'
+  const [activeAiTab, setActiveAiTab] = useState('summary'); // 'summary' | 'ats' | 'skills' | 'jd' | 'bullet'
+  const [originalBullet, setOriginalBullet] = useState('');
+  const [targetKeywords, setTargetKeywords] = useState('');
 
   const hasResumeContent = useMemo(
     () => Object.values(resumeData).some((value) => value.trim().length > 0),
@@ -265,6 +268,21 @@ function App() {
     }
   };
 
+  const handleRewriteBullet = async () => {
+    if (!originalBullet.trim()) return setMessage('Add an original bullet first.');
+    dispatch(setAiLoading(true));
+    try {
+      const result = await aiPost('rewrite-bullet', {
+        originalBullet,
+        jobDescription,
+        targetKeywords,
+      }, token);
+      dispatch(setBulletResult(result));
+    } catch (err) {
+      dispatch(setAiError(err.message));
+    }
+  };
+
   // Apply an AI-suggested skill to the skills field
   const handleAddSuggestedSkill = (skill) => {
     const current = resumeData.skills
@@ -287,9 +305,9 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div className="header-badge">DAY 7</div>
+        <div className="header-badge">Gemini AI</div>
         <h1>Gemini AI Integration</h1>
-        <p>ATS Analysis + JD Keyword Extraction · Gemini 1.5 Flash · Structured JSON responses</p>
+        <p>ATS Analysis + JD Extraction + Bullet Rewriting · Gemini 1.5 Flash · Structured JSON responses</p>
       </header>
 
       {/* Auth Grid */}
@@ -429,6 +447,14 @@ function App() {
                 onClick={() => setActiveAiTab('jd')}
               >
                 🧠 JD Analyzer
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeAiTab === 'bullet'}
+                className={`ai-tab ${activeAiTab === 'bullet' ? 'ai-tab--active' : ''}`}
+                onClick={() => setActiveAiTab('bullet')}
+              >
+                ✨ Bullet Rewriter
               </button>
             </div>
 
@@ -627,6 +653,71 @@ function App() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── Tab: Bullet Rewriter ─────────────────────────────── */}
+            {activeAiTab === 'bullet' && (
+              <div className="ai-tab-content" role="tabpanel">
+                <p className="ai-helper">
+                  Turn weak bullets into ATS-ready achievements with action verbs, keyword injection, and measurable impact.
+                </p>
+                <textarea
+                  className="ai-jd-textarea"
+                  placeholder="Original bullet (e.g., Worked on APIs)"
+                  value={originalBullet}
+                  onChange={(e) => setOriginalBullet(e.target.value)}
+                  rows={3}
+                />
+                <input
+                  type="text"
+                  placeholder="Target keywords (comma separated, optional)"
+                  value={targetKeywords}
+                  onChange={(e) => setTargetKeywords(e.target.value)}
+                />
+                <textarea
+                  className="ai-jd-textarea"
+                  placeholder="Job description context (optional but recommended)"
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  rows={5}
+                />
+                <button
+                  className="ai-action-btn"
+                  onClick={handleRewriteBullet}
+                  disabled={ai.loading}
+                >
+                  {ai.loading ? <span className="spinner" /> : '✨'} Rewrite Bullet
+                </button>
+
+                {ai.bulletResult && (
+                  <div className="ai-result-card">
+                    <div className="ai-result-label">✦ Rewritten Bullet</div>
+                    <p className="ai-improved-text">{ai.bulletResult.rewrittenBullet}</p>
+
+                    {ai.bulletResult.keywordsUsed?.length > 0 && (
+                      <div className="ai-keywords">
+                        <div className="ai-result-label">Keywords Used</div>
+                        <div className="chip-row">
+                          {ai.bulletResult.keywordsUsed.map((kw, i) => (
+                            <span key={i} className="chip chip--hard">{kw}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {ai.bulletResult.improvementNotes?.length > 0 && (
+                      <div className="ai-tips">
+                        <div className="ai-tips-label">Why It Is Better</div>
+                        <ul>
+                          {ai.bulletResult.improvementNotes.map((note, i) => (
+                            <li key={i}>{note}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

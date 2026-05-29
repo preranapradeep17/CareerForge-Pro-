@@ -21,6 +21,8 @@ const initialState = {
     skillsResult: null,    // { suggestedSkills[{ skill, why }], reason }
     // jd analysis result
     jdResult: null,        // { hardSkills[], softSkills[], actionVerbs[], domain[], seniorityLevel[] }
+    // bullet rewrite result
+    bulletResult: null,    // { rewrittenBullet, keywordsUsed[], improvementNotes[] }
   },
 };
 
@@ -69,6 +71,10 @@ const resumeSlice = createSlice({
       state.ai.jdResult = action.payload;
       state.ai.loading = false;
     },
+    setBulletResult: (state, action) => {
+      state.ai.bulletResult = action.payload;
+      state.ai.loading = false;
+    },
     clearAiResults: (state) => {
       state.ai = initialState.ai;
     },
@@ -85,6 +91,7 @@ export const {
   setAtsResult,
   setSkillsResult,
   setJdResult,
+  setBulletResult,
   clearAiResults,
 } = resumeSlice.actions;
 
