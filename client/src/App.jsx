@@ -18,6 +18,7 @@ import {
   setJdResult,
   setBulletResult,
 } from './store/resumeSlice';
+import { scoreResumeAgainstJD } from './utils/atsScorer';
 
 const API_BASE = 'http://localhost:5000/api';
 const AUTO_SAVE_DELAY_MS = 1500;
@@ -227,16 +228,8 @@ function App() {
 
   const handleAtsAnalysis = async () => {
     if (!jobDescription.trim()) return setMessage('Paste a job description first.');
-    dispatch(setAiLoading(true));
-    try {
-      const result = await aiPost('ats-analysis', {
-        resumeData,
-        jobDescription,
-      }, token);
-      dispatch(setAtsResult(result));
-    } catch (err) {
-      dispatch(setAiError(err.message));
-    }
+    const result = scoreResumeAgainstJD({ resumeData, jobDescription });
+    dispatch(setAtsResult(result));
   };
 
   const handleSuggestSkills = async () => {
@@ -504,7 +497,7 @@ function App() {
             {activeAiTab === 'ats' && (
               <div className="ai-tab-content" role="tabpanel">
                 <p className="ai-helper">
-                  Paste a job description to get your ATS match score, missing keywords, and suggestions.
+                  Frontend ATS scoring engine: keyword match (60%), formatting (25%), completeness (15%).
                 </p>
                 <textarea
                   id="job-description"
@@ -520,7 +513,7 @@ function App() {
                   onClick={handleAtsAnalysis}
                   disabled={ai.loading}
                 >
-                  {ai.loading ? <span className="spinner" /> : '📊'} Analyse ATS Score
+                  {ai.loading ? <span className="spinner" /> : '📊'} Run ATS Scoring Engine
                 </button>
 
                 {ai.atsResult && (
@@ -562,6 +555,17 @@ function App() {
                           {ai.atsResult.suggestions.map((s, i) => (
                             <li key={i}>{s}</li>
                           ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {ai.atsResult.breakdown && (
+                      <div className="ai-tips">
+                        <div className="ai-tips-label">Score Breakdown</div>
+                        <ul>
+                          <li>Keyword Match ({ai.atsResult.breakdown.weights.keywordMatch}%): {ai.atsResult.breakdown.keywordMatch}%</li>
+                          <li>Formatting ({ai.atsResult.breakdown.weights.formatting}%): {ai.atsResult.breakdown.formatting}%</li>
+                          <li>Completeness ({ai.atsResult.breakdown.weights.completeness}%): {ai.atsResult.breakdown.completeness}%</li>
                         </ul>
                       </div>
                     )}
