@@ -1,4 +1,6 @@
 const express = require('express');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 const { protect } = require('../middleware/authMiddleware');
 const { generateJSON } = require('../services/geminiService');
 const { buildResumeSummaryPrompt } = require('../prompts/resumeSummaryPrompt');
@@ -6,8 +8,45 @@ const { buildAtsAnalysisPrompt } = require('../prompts/atsAnalysisPrompt');
 const { buildSkillsSuggestionPrompt } = require('../prompts/skillsSuggestionPrompt');
 const { buildJdAnalysisPrompt } = require('../prompts/jdAnalysisPrompt');
 const { buildBulletRewritePrompt } = require('../prompts/bulletRewritePrompt');
+const { buildResumeParsePrompt } = require('../prompts/resumeParsePrompt');
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+const MAX_RESUME_TEXT_CHARS = 15000;
+
+const normalizeSkill = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const extractSkillsFromText = (rawText) => {
+  const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
+  const skillLine = lines.find((line) => /^skills?\s*[:|-]/i.test(line));
+  if (!skillLine) return [];
+  const [, skillText = ''] = skillLine.split(/[:|-]/, 2);
+  return [...new Set(skillText
+    .split(/[;,|]/)
+    .map(normalizeSkill)
+    .filter(Boolean))].slice(0, 25);
+};
+
+const normalizeParsedResume = (result, rawText) => {
+  const fullName = typeof result.fullName === 'string' ? result.fullName.trim() : '';
+  const title = typeof result.title === 'string' ? result.title.trim() : '';
+  const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
+
+  const aiSkills = Array.isArray(result.skills)
+    ? result.skills.map(normalizeSkill).filter(Boolean)
+    : [];
+  const fallbackSkills = aiSkills.length > 0 ? [] : extractSkillsFromText(rawText);
+
+  return {
+    fullName,
+    title,
+    summary,
+    skills: [...new Set([...aiSkills, ...fallbackSkills])],
+  };
+};
 
 // ─── POST /api/ai/improve-summary ─────────────────────────────────────────────
 // Body: { summary: string, jobTitle: string }
@@ -136,6 +175,40 @@ router.post('/rewrite-bullet', protect, async (req, res) => {
   } catch (error) {
     console.error('[AI] rewrite-bullet error:', error.message);
     return res.status(500).json({ message: 'AI request failed', error: error.message });
+  }
+});
+
+// ─── POST /api/ai/parse-resume ───────────────────────────────────────────────
+// multipart/form-data: { resume: PDF file }
+// Returns: { fullName, title, summary, skills[] }
+router.post('/parse-resume', protect, upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'resume PDF file is required' });
+    }
+    const isPdfByMime = req.file.mimetype === 'application/pdf';
+    const isPdfByName = /\.pdf$/i.test(req.file.originalname || '');
+    if (!isPdfByMime && !isPdfByName) {
+      return res.status(400).json({ message: 'Only PDF files are supported' });
+    }
+
+    const pdf = await pdfParse(req.file.buffer);
+    const rawText = String(pdf.text || '').trim();
+    if (!rawText) {
+      return res.status(400).json({ message: 'No readable text found in PDF' });
+    }
+
+    const prompt = buildResumeParsePrompt({ resumeText: rawText.slice(0, MAX_RESUME_TEXT_CHARS) });
+    const result = await generateJSON(prompt);
+    const normalized = normalizeParsedResume(result, rawText);
+
+    return res.status(200).json(normalized);
+  } catch (error) {
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'PDF too large. Max size is 5MB.' });
+    }
+    console.error('[AI] parse-resume error:', error.message);
+    return res.status(500).json({ message: 'Resume parsing failed', error: error.message });
   }
 });
 

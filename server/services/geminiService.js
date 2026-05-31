@@ -40,9 +40,19 @@ const generateContent = async (prompt) => {
  */
 const generateJSON = async (prompt) => {
   const raw = await generateContent(prompt);
-  // Strip markdown code fences if present
+  // Strip markdown fences and recover the first JSON object if extra prose appears.
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(cleaned);
+  } catch (_error) {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      throw new Error('Model response was not valid JSON');
+    }
+    const jsonSlice = cleaned.slice(firstBrace, lastBrace + 1);
+    return JSON.parse(jsonSlice);
+  }
 };
 
 module.exports = { generateContent, generateJSON };
