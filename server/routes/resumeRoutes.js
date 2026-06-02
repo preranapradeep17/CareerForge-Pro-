@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Resume = require('../models/Resume');
 const User = require('../models/User');
 const { protect } = require('../middleware/authMiddleware');
+const { generateResumePdfBuffer } = require('../services/pdfService');
 
 const router = express.Router();
 
@@ -84,6 +85,32 @@ router.get('/', protect, async (req, res) => {
     return res.status(200).json({ resumes });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch resumes', error: error.message });
+  }
+});
+
+router.post('/export/pdf', protect, async (req, res) => {
+  try {
+    const validationError = validateResumePayload(req.body);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const pdfBuffer = await generateResumePdfBuffer(req.body);
+    const safeFileName = (req.body.personalInfo?.fullName || 'resume')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'resume';
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}.pdf"`);
+    return res.status(200).send(pdfBuffer);
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      message: statusCode === 500 ? 'Failed to export resume PDF' : error.message,
+      error: error.message,
+    });
   }
 });
 

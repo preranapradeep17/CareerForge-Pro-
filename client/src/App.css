@@ -173,15 +173,193 @@ button:disabled {
   background: #0a0f1e;
 }
 
-.preview-pane p {
-  margin: 0.5rem 0;
+.preview-pane__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.preview-pane__caption {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.85rem;
   line-height: 1.5;
-  font-size: 0.9rem;
+}
+
+.preview-pane__export {
+  flex-shrink: 0;
+}
+
+.resume-preview {
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid #1e3a8a;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #0f172a;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.24);
+}
+
+.resume-preview__hero {
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #38bdf8 100%);
+  color: #fff;
+}
+
+.resume-preview__eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.resume-preview__hero h3 {
+  margin: 0;
+  font-size: 1.8rem;
+  line-height: 1.05;
+}
+
+.resume-preview__title {
+  margin: 0.55rem 0 0;
+  font-size: 0.98rem;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.resume-preview__content {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.resume-preview__main,
+.resume-preview__side {
+  padding: 1.4rem 1.5rem 1.5rem;
+}
+
+.resume-preview__side {
+  background: #f8fafc;
+  border-left: 1px solid #e2e8f0;
+}
+
+.resume-preview__section + .resume-preview__section {
+  margin-top: 1.3rem;
+}
+
+.resume-preview__label {
+  margin: 0 0 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+
+.resume-preview__summary {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.75;
+  color: #334155;
+}
+
+.resume-preview__metric {
+  border-radius: 18px;
+  padding: 1rem;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1px solid #bfdbfe;
+}
+
+.resume-preview__metric-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.resume-preview__metric strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.resume-preview__metric p {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.resume-preview__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.resume-preview__skill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.resume-preview__empty {
+  margin: 0;
+  font-size: 0.88rem;
   color: #94a3b8;
 }
 
-.preview-pane p strong {
-  color: #e2e8f0;
+.resume-preview--modern .resume-preview__hero {
+  background: linear-gradient(120deg, #0f172a 0%, #0f766e 55%, #2dd4bf 100%);
+}
+
+.resume-preview--modern .resume-preview__metric {
+  background: linear-gradient(135deg, #ccfbf1, #ecfeff);
+  border-color: #99f6e4;
+}
+
+.resume-preview--modern .resume-preview__skill {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.resume-preview--minimal {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.resume-preview--minimal .resume-preview__hero {
+  background: #ffffff;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.resume-preview--minimal .resume-preview__eyebrow,
+.resume-preview--minimal .resume-preview__title {
+  color: #475569;
+}
+
+.resume-preview--minimal .resume-preview__content {
+  grid-template-columns: 1fr;
+}
+
+.resume-preview--minimal .resume-preview__side {
+  border-left: 0;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.resume-preview--minimal .resume-preview__metric {
+  background: #f8fafc;
+  border-color: #e2e8f0;
 }
 
 .autosave-state {
@@ -672,5 +850,24 @@ button:disabled {
   .ai-tab {
     font-size: 0.88rem;
     padding: 0.65rem 1rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .preview-pane__header {
+    flex-direction: column;
+  }
+
+  .preview-pane__export {
+    width: 100%;
+  }
+
+  .resume-preview__content {
+    grid-template-columns: 1fr;
+  }
+
+  .resume-preview__side {
+    border-left: 0;
+    border-top: 1px solid #e2e8f0;
   }
 }

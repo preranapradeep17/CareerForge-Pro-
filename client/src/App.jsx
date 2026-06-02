@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import './App.css';
 import {
@@ -55,28 +55,19 @@ function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [saveError, setSaveError] = useState('');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // AI panel state
   const [jobDescription, setJobDescription] = useState('');
   const [activeAiTab, setActiveAiTab] = useState('summary'); // 'summary' | 'ats' | 'skills' | 'jd' | 'bullet'
   const [originalBullet, setOriginalBullet] = useState('');
   const [targetKeywords, setTargetKeywords] = useState('');
+  const [isParsingResume, setIsParsingResume] = useState(false);
 
   const hasResumeContent = useMemo(
     () => Object.values(resumeData).some((value) => value.trim().length > 0),
     [resumeData]
   );
-
-  useEffect(() => {
-    if (!token) return;
-    fetchProfile(token);
-  }, [token]);
-
-  useEffect(() => {
-    if (!isLoggedIn || !token || !hasResumeContent) return;
-    const timeoutId = setTimeout(() => { saveResume(); }, AUTO_SAVE_DELAY_MS);
-    return () => clearTimeout(timeoutId);
-  }, [resumeData, template, atsScore, isLoggedIn, token, hasResumeContent]);
 
   const mapResumePayload = () => ({
     personalInfo: {
@@ -118,6 +109,97 @@ function App() {
       setSaveError(error.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    dispatch(clearCredentials());
+    setResumeId(null);
+    setLastSavedAt(null);
+    setSaveError('');
+    setMessage('Logged out and token cleared.');
+  };
+
+  async function fetchProfile(activeToken = token) {
+    setLoading(true);
+    setMessage('Checking protected route...');
+    try {
+      const response = await fetch(`${API_BASE}/protected/me`, {
+        headers: { Authorization: `Bearer ${activeToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to load profile');
+      dispatch(setUser(data.user));
+      setMessage('Protected route is accessible.');
+    } catch (error) {
+      setMessage(error.message);
+      if (error.message.toLowerCase().includes('unauthorized')) handleLogout();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const runSaveResumeEffect = useEffectEvent(() => {
+    saveResume();
+  });
+
+  const runUnauthorizedLogout = useEffectEvent(() => {
+    handleLogout();
+  });
+
+  const handleExportPdf = async () => {
+    if (!isLoggedIn || !token) {
+      setMessage('Login to export your resume as a PDF.');
+      return;
+    }
+
+    setIsExportingPdf(true);
+    setMessage('Generating A4 PDF...');
+
+    try {
+      const response = await fetch(`${API_BASE}/resumes/export/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(mapResumePayload()),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to export PDF';
+
+        try {
+          const data = await response.json();
+          errorMessage = data.message || errorMessage;
+        } catch {
+          errorMessage = 'Failed to export PDF';
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = (resumeData.fullName || 'resume')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'resume';
+
+      link.href = downloadUrl;
+      link.download = `${safeName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setMessage('PDF exported successfully.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -177,33 +259,45 @@ function App() {
     }
   };
 
-  const fetchProfile = async (activeToken = token) => {
-    setLoading(true);
-    setMessage('Checking protected route...');
-    try {
-      const response = await fetch(`${API_BASE}/protected/me`, {
-        headers: { Authorization: `Bearer ${activeToken}` },
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to load profile');
-      dispatch(setUser(data.user));
-      setMessage('Protected route is accessible.');
-    } catch (error) {
-      setMessage(error.message);
-      if (error.message.toLowerCase().includes('unauthorized')) handleLogout();
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!token) return;
+    let isCancelled = false;
 
-  const handleLogout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    dispatch(clearCredentials());
-    setResumeId(null);
-    setLastSavedAt(null);
-    setSaveError('');
-    setMessage('Logged out and token cleared.');
-  };
+    const syncProfile = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/protected/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to load profile');
+        }
+
+        if (!isCancelled) {
+          dispatch(setUser(data.user));
+        }
+      } catch (error) {
+        if (!isCancelled && error.message.toLowerCase().includes('unauthorized')) {
+          runUnauthorizedLogout();
+        }
+      }
+    };
+
+    syncProfile();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token, dispatch]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !token || !hasResumeContent) return;
+    const timeoutId = setTimeout(() => {
+      runSaveResumeEffect();
+    }, AUTO_SAVE_DELAY_MS);
+    return () => clearTimeout(timeoutId);
+  }, [resumeData, template, atsScore, isLoggedIn, token, hasResumeContent]);
 
   const handleResumeChange = (e) => {
     const { name, value } = e.target;
@@ -288,6 +382,42 @@ function App() {
     }
   };
 
+  const handleResumeUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isLoggedIn || !token) {
+      setMessage('Please login first to parse your resume.');
+      e.target.value = '';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('resume', file);
+
+    setIsParsingResume(true);
+    setMessage('Parsing resume PDF...');
+    try {
+      const response = await fetch(`${API_BASE}/ai/parse-resume`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to parse resume');
+
+      dispatch(updateResumeField({ field: 'fullName', value: data.fullName || '' }));
+      dispatch(updateResumeField({ field: 'title', value: data.title || '' }));
+      dispatch(updateResumeField({ field: 'summary', value: data.summary || '' }));
+      dispatch(updateResumeField({ field: 'skills', value: Array.isArray(data.skills) ? data.skills.join(', ') : '' }));
+      setMessage('Resume parsed and form auto-filled.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setIsParsingResume(false);
+      e.target.value = '';
+    }
+  };
+
   // Apply AI-improved summary
   const handleApplyImprovedSummary = () => {
     if (ai.summaryResult?.improvedSummary) {
@@ -353,6 +483,17 @@ function App() {
       <section className="split-editor">
         <form className="card editor-pane">
           <h2>Resume Builder Form</h2>
+          <label htmlFor="resume-upload">Upload Resume (PDF)</label>
+          <input
+            id="resume-upload"
+            type="file"
+            accept="application/pdf"
+            onChange={handleResumeUpload}
+            disabled={!isLoggedIn || isParsingResume}
+          />
+          <p className="autosave-state">
+            {!isLoggedIn ? 'Login to enable parsing' : isParsingResume ? 'Parsing in progress...' : 'Upload a PDF to auto-fill fields'}
+          </p>
           <input type="text" name="fullName" placeholder="Full Name"
             value={resumeData.fullName} onChange={handleResumeChange} />
           <input type="text" name="title" placeholder="Target Job Title"
@@ -382,13 +523,70 @@ function App() {
         </form>
 
         <article className="card preview-pane">
-          <h2>Live Preview</h2>
-          <p><strong>Name:</strong> {resumeData.fullName || 'Your name'}</p>
-          <p><strong>Title:</strong> {resumeData.title || 'Your title'}</p>
-          <p><strong>Summary:</strong> {resumeData.summary || 'Your summary appears here'}</p>
-          <p><strong>Skills:</strong> {resumeData.skills || 'Your skills appear here'}</p>
-          <p><strong>Template:</strong> {template}</p>
-          <p><strong>ATS Score:</strong> {atsScore}%</p>
+          <div className="preview-pane__header">
+            <div>
+              <h2>Live Preview</h2>
+              <p className="preview-pane__caption">The exported PDF uses this same resume layout in an A4 page.</p>
+            </div>
+            <button
+              type="button"
+              className="preview-pane__export"
+              onClick={handleExportPdf}
+              disabled={!isLoggedIn || isExportingPdf}
+            >
+              {isExportingPdf ? 'Exporting...' : 'Export A4 PDF'}
+            </button>
+          </div>
+
+          <div className={`resume-preview resume-preview--${template}`}>
+            <div className="resume-preview__hero">
+              <p className="resume-preview__eyebrow">CareerForge Pro Resume</p>
+              <h3>{resumeData.fullName || 'Your Name'}</h3>
+              <p className="resume-preview__title">{resumeData.title || 'Target Role'}</p>
+            </div>
+
+            <div className="resume-preview__content">
+              <section className="resume-preview__main">
+                <div className="resume-preview__section">
+                  <p className="resume-preview__label">Professional Summary</p>
+                  <p className="resume-preview__summary">
+                    {resumeData.summary || 'Your summary appears here and carries over into the generated PDF.'}
+                  </p>
+                </div>
+              </section>
+
+              <aside className="resume-preview__side">
+                <div className="resume-preview__section">
+                  <p className="resume-preview__label">ATS Snapshot</p>
+                  <div className="resume-preview__metric">
+                    <span className="resume-preview__metric-label">Current Score</span>
+                    <strong>{atsScore}%</strong>
+                    <p>Updated from your current resume fields.</p>
+                  </div>
+                </div>
+
+                <div className="resume-preview__section">
+                  <p className="resume-preview__label">Core Skills</p>
+                  <div className="resume-preview__skills">
+                    {resumeData.skills
+                      .split(',')
+                      .map((skill) => skill.trim())
+                      .filter(Boolean)
+                      .map((skill) => (
+                        <span key={skill} className="resume-preview__skill">{skill}</span>
+                      ))}
+                    {!resumeData.skills.trim() && (
+                      <p className="resume-preview__empty">Your skills appear here.</p>
+                    )}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+
+          <p className="autosave-state">
+            {!isLoggedIn ? 'Login to unlock PDF export' : 'Puppeteer renders this HTML in a hidden browser and exports it as A4.'}
+          </p>
         </article>
       </section>
 
