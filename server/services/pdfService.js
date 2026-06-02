@@ -39,7 +39,7 @@ const buildSkillMarkup = (skills, template) => {
 };
 
 const buildTemplateClass = (template) => {
-  if (['classic', 'modern', 'minimal'].includes(template)) {
+  if (['classic', 'modern', 'minimal', 'executive'].includes(template)) {
     return `template-${template}`;
   }
 
@@ -276,6 +276,25 @@ const buildResumeHtml = (resume) => {
           .template-minimal .metric-card {
             background: #f8fafc;
             border-color: #e2e8f0;
+          }
+
+          .template-executive .hero {
+            background: linear-gradient(135deg, #111827 0%, #334155 100%);
+          }
+
+          .template-executive .content {
+            grid-template-columns: 1fr;
+          }
+
+          .template-executive .side-column {
+            border-left: 0;
+            border-top: 1px solid #e2e8f0;
+            background: #ffffff;
+          }
+
+          .template-executive .metric-card {
+            background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+            border-color: #cbd5e1;
           }
         </style>
       </head>
