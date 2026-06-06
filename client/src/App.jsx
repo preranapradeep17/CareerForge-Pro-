@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { NavLink, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import './App.css';
+import { TEMPLATES, TEMPLATE_LIST } from './templates';
 import {
   TOKEN_KEY,
   clearCredentials,
@@ -24,7 +25,7 @@ import { scoreResumeAgainstJD } from './utils/atsScorer';
 
 const API_BASE = 'http://localhost:5000/api';
 const AUTO_SAVE_DELAY_MS = 1500;
-const TEMPLATE_OPTIONS = ['classic', 'modern', 'minimal', 'executive'];
+const TEMPLATE_OPTIONS = ['classic', 'modern', 'minimal'];
 
 const initialRegister = { name: '', email: '', password: '', confirmPassword: '' };
 const initialLogin = { email: '', password: '' };
@@ -1121,14 +1122,28 @@ function ResumeBuilderPage({ app }) {
             />
           </label>
 
-          <label>
-            Resume Template
-            <select value={app.template} onChange={(event) => app.setTemplate(event.target.value)}>
-              {TEMPLATE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+          <div style={{ display: 'grid', gap: '0.55rem' }}>
+            <span style={{ color: '#d8e5fb', fontSize: '0.92rem' }}>Resume Template</span>
+            <div className="template-switcher">
+              {TEMPLATE_LIST.map((tpl) => (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  className={`template-switcher__btn${app.template === tpl.key ? ' template-switcher__btn--active' : ''}`}
+                  onClick={() => app.setTemplate(tpl.key)}
+                >
+                  <span
+                    className="template-switcher__swatch"
+                    style={{ background: tpl.accent }}
+                  />
+                  <span className="template-switcher__name">{tpl.label}</span>
+                  {app.template === tpl.key && (
+                    <span className="template-switcher__tick">✓</span>
+                  )}
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
         </form>
 
         <article className="surface-card builder-preview">
@@ -1358,27 +1373,53 @@ function TemplatesPage({ app }) {
         </div>
       </header>
 
-      <section className="template-grid">
-        {TEMPLATE_OPTIONS.map((option) => (
-          <article key={option} className="surface-card template-surface">
-            <div className={`template-card template-card--${option}`} />
-            <div className="surface-card__header">
-              <h3>{capitalize(option)}</h3>
-              {app.template === option && <span className="status-pill status-pill--accent">Active</span>}
-            </div>
-            <p>
-              {option === 'executive'
-                ? 'A sharper, premium layout for senior or consulting-style applications.'
-                : 'Balanced typography, structured hierarchy, and recruiter-friendly readability.'}
-            </p>
-            <div className="header-actions">
-              <button type="button" className="primary-button" onClick={() => app.setTemplate(option)}>
-                Use Template
-              </button>
-              <NavLink to="/resume-builder" className="ghost-link">Open Builder</NavLink>
-            </div>
-          </article>
-        ))}
+      <section className="template-gallery">
+        {TEMPLATE_LIST.map((tpl) => {
+          const isActive = app.template === tpl.key;
+          return (
+            <article
+              key={tpl.key}
+              className={`template-gallery__card${isActive ? ' template-gallery__card--active' : ''}`}
+            >
+              {/* Live miniature preview */}
+              <div className="template-thumb-wrap">
+                <div className="template-thumb-scale">
+                  <ResumePreview
+                    resumeData={app.resumeData}
+                    template={tpl.key}
+                    atsScore={app.atsScore}
+                  />
+                </div>
+                {isActive && (
+                  <div className="template-thumb-badge">Active</div>
+                )}
+              </div>
+
+              {/* Card footer */}
+              <div className="template-gallery__footer">
+                <div>
+                  <h3 className="template-gallery__name">{tpl.label}</h3>
+                  <p className="template-gallery__tagline">{tpl.tagline}</p>
+                </div>
+                <div className="header-actions">
+                  {!isActive ? (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => app.setTemplate(tpl.key)}
+                    >
+                      Use Template
+                    </button>
+                  ) : (
+                    <NavLink to="/resume-builder" className="ghost-link">
+                      Open Builder
+                    </NavLink>
+                  )}
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </section>
     </div>
   );
@@ -1501,53 +1542,8 @@ function SettingsPage({ app }) {
 }
 
 function ResumePreview({ resumeData, template, atsScore }) {
-  return (
-    <div className={`resume-preview resume-preview--${template}`}>
-      <div className="resume-preview__hero">
-        <p className="resume-preview__eyebrow">CareerForge Pro Resume</p>
-        <h3>{resumeData.fullName || 'Your Name'}</h3>
-        <p className="resume-preview__title">{resumeData.title || 'Target Role'}</p>
-      </div>
-
-      <div className="resume-preview__content">
-        <section className="resume-preview__main">
-          <div className="resume-preview__section">
-            <p className="resume-preview__label">Professional Summary</p>
-            <p className="resume-preview__summary">
-              {resumeData.summary || 'Your summary appears here and carries over into the generated PDF.'}
-            </p>
-          </div>
-        </section>
-
-        <aside className="resume-preview__side">
-          <div className="resume-preview__section">
-            <p className="resume-preview__label">ATS Snapshot</p>
-            <div className="resume-preview__metric">
-              <span className="resume-preview__metric-label">Current Score</span>
-              <strong>{atsScore}%</strong>
-              <p>Updated from your current resume fields.</p>
-            </div>
-          </div>
-
-          <div className="resume-preview__section">
-            <p className="resume-preview__label">Core Skills</p>
-            <div className="resume-preview__skills">
-              {resumeData.skills
-                .split(',')
-                .map((skill) => skill.trim())
-                .filter(Boolean)
-                .map((skill) => (
-                  <span key={skill} className="resume-preview__skill">{skill}</span>
-                ))}
-              {!resumeData.skills.trim() && (
-                <p className="resume-preview__empty">Your skills appear here.</p>
-              )}
-            </div>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
+  const TemplateComponent = TEMPLATES[template] ?? TEMPLATES.classic;
+  return <TemplateComponent resumeData={resumeData} atsScore={atsScore} />;
 }
 
 function ChipRow({ title, items, className }) {
@@ -1567,10 +1563,6 @@ function ChipRow({ title, items, className }) {
       </div>
     </div>
   );
-}
-
-function capitalize(value) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export default App;

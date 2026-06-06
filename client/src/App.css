@@ -801,53 +801,143 @@ label {
   font-weight: 700;
 }
 
-.resume-preview--modern .resume-preview__hero {
-  background: linear-gradient(120deg, #0f172a 0%, #0f766e 55%, #2dd4bf 100%);
+/* ─── Template Gallery (Templates page) ─────────────────────────────────── */
+
+.template-gallery {
+  padding: 0 1.5rem 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
 }
 
-.resume-preview--modern .resume-preview__metric {
-  background: linear-gradient(135deg, #ccfbf1, #ecfeff);
-  border-color: #99f6e4;
+.template-gallery__card {
+  border-radius: 28px;
+  background: rgba(14, 24, 44, 0.72);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
 }
 
-.resume-preview--modern .resume-preview__skill {
-  background: #ccfbf1;
-  color: #115e59;
+.template-gallery__card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 60px rgba(3, 8, 20, 0.4);
 }
 
-.resume-preview--minimal,
-.resume-preview--executive {
-  box-shadow: none;
+.template-gallery__card--active {
+  border-color: var(--brand);
+  box-shadow:
+    0 0 0 2px rgba(101, 184, 255, 0.3),
+    0 24px 60px rgba(3, 8, 20, 0.36);
 }
 
-.resume-preview--minimal .resume-preview__hero {
-  background: white;
-  color: #0f172a;
-  border-bottom: 1px solid #e2e8f0;
+/* Live miniature viewport */
+.template-thumb-wrap {
+  position: relative;
+  height: 260px;
+  overflow: hidden;
+  background: #f8fafc;
+  cursor: default;
 }
 
-.resume-preview--minimal .resume-preview__eyebrow,
-.resume-preview--minimal .resume-preview__title {
-  color: #475569;
+.template-thumb-scale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 260%;
+  transform: scale(0.385);
+  transform-origin: top left;
+  pointer-events: none;
+  user-select: none;
 }
 
-.resume-preview--minimal .resume-preview__content,
-.resume-preview--executive .resume-preview__content {
-  grid-template-columns: 1fr;
+.template-thumb-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-deep), #63c6ff);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow: 0 4px 14px rgba(43, 127, 255, 0.4);
 }
 
-.resume-preview--minimal .resume-preview__side,
-.resume-preview--executive .resume-preview__side {
-  border-left: 0;
-  border-top: 1px solid #e2e8f0;
+.template-gallery__footer {
+  padding: 1.1rem 1.3rem 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
-.resume-preview--executive .resume-preview__hero {
-  background: linear-gradient(135deg, #111827, #334155);
+.template-gallery__name {
+  margin: 0 0 0.2rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1rem;
+  color: white;
 }
 
-.resume-preview--executive .resume-preview__metric {
-  background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+.template-gallery__tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* ─── Template Switcher (Resume Builder inline selector) ─────────────────── */
+
+.template-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.template-switcher__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.75rem 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(151, 182, 255, 0.14);
+  border-radius: 18px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s, color 0.2s;
+}
+
+.template-switcher__btn:hover {
+  background: rgba(101, 184, 255, 0.08);
+  border-color: rgba(101, 184, 255, 0.3);
+  transform: translateY(-1px);
+  color: var(--text);
+}
+
+.template-switcher__btn--active {
+  background: rgba(43, 127, 255, 0.14);
+  border-color: var(--brand);
+  color: white;
+}
+
+.template-switcher__swatch {
+  display: block;
+  width: 40px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  flex-shrink: 0;
+}
+
+.template-switcher__name {
+  font-size: 0.75rem;
+}
+
+.template-switcher__tick {
+  font-size: 0.7rem;
+  color: var(--brand);
 }
 
 @media (max-width: 1080px) {
