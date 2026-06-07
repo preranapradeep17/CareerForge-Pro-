@@ -2,7 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Resume = require('../models/Resume');
 const User = require('../models/User');
+const ResumeVersion = require('../models/ResumeVersion');
 const { protect } = require('../middleware/authMiddleware');
+const { requirePro } = require('../middleware/gateMiddleware');
 const { generateResumePdfBuffer } = require('../services/pdfService');
 
 const router = express.Router();
@@ -59,6 +61,19 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: validationError });
     }
 
+    // Check user plan and resume count limit
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.plan === 'free' && user.resumeCount >= 1) {
+      return res.status(403).json({
+        message: 'Free plan limit reached. You can only create 1 resume on the Starter plan. Upgrade to Pro for unlimited resumes.',
+        upgradeRequired: true,
+      });
+    }
+
     const resume = await Resume.create({
       user: req.user.id,
       personalInfo: req.body.personalInfo,
@@ -88,7 +103,7 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-router.post('/export/pdf', protect, async (req, res) => {
+router.post('/export/pdf', protect, requirePro, async (req, res) => {
   try {
     const validationError = validateResumePayload(req.body);
     if (validationError) {
@@ -171,6 +186,134 @@ router.delete('/:id', protect, async (req, res) => {
     return res.status(200).json({ message: 'Resume deleted successfully' });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to delete resume', error: error.message });
+  }
+});
+
+// ─── POST /api/resumes/:id/versions ──────────────────────────────────────────
+// Saves a snapshot version of the current resume state.
+router.post('/:id/versions', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { versionName } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid resume id' });
+    }
+
+    if (!versionName || typeof versionName !== 'string' || versionName.trim() === '') {
+      return res.status(400).json({ message: 'versionName is required and must be a non-empty string' });
+    }
+
+    const resume = await Resume.findOne({ _id: id, user: req.user.id });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    const version = await ResumeVersion.create({
+      resume: id,
+      personalInfo: resume.personalInfo,
+      experience: resume.experience,
+      education: resume.education,
+      skills: resume.skills,
+      projects: resume.projects,
+      atsScore: resume.atsScore,
+      template: resume.template,
+      targetJD: resume.targetJD,
+      versionName: versionName.trim(),
+    });
+
+    return res.status(201).json({ version });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to create resume version', error: error.message });
+  }
+});
+
+// ─── GET /api/resumes/:id/versions ───────────────────────────────────────────
+// Fetches all saved versions for a specific resume.
+router.get('/:id/versions', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid resume id' });
+    }
+
+    // Verify ownership
+    const resume = await Resume.findOne({ _id: id, user: req.user.id });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    const versions = await ResumeVersion.find({ resume: id }).sort({ createdAt: -1 });
+    return res.status(200).json({ versions });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to fetch resume versions', error: error.message });
+  }
+});
+
+// ─── POST /api/resumes/:id/versions/:versionId/restore ────────────────────────
+// Restores the resume state to a snapshot version.
+router.post('/:id/versions/:versionId/restore', protect, async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(versionId)) {
+      return res.status(400).json({ message: 'Invalid resume or version id' });
+    }
+
+    // Verify ownership
+    const resume = await Resume.findOne({ _id: id, user: req.user.id });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    const version = await ResumeVersion.findOne({ _id: versionId, resume: id });
+    if (!version) {
+      return res.status(404).json({ message: 'Resume version not found' });
+    }
+
+    // Restore fields
+    resume.personalInfo = version.personalInfo;
+    resume.experience = version.experience;
+    resume.education = version.education;
+    resume.skills = version.skills;
+    resume.projects = version.projects;
+    resume.atsScore = version.atsScore;
+    resume.template = version.template;
+    resume.targetJD = version.targetJD;
+
+    await resume.save();
+
+    return res.status(200).json({ resume });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to restore resume version', error: error.message });
+  }
+});
+
+// ─── DELETE /api/resumes/:id/versions/:versionId ──────────────────────────────
+// Deletes a specific version snapshot.
+router.delete('/:id/versions/:versionId', protect, async (req, res) => {
+  try {
+    const { id, versionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(versionId)) {
+      return res.status(400).json({ message: 'Invalid resume or version id' });
+    }
+
+    // Verify ownership of the resume
+    const resume = await Resume.findOne({ _id: id, user: req.user.id });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    const deletedVersion = await ResumeVersion.findOneAndDelete({ _id: versionId, resume: id });
+    if (!deletedVersion) {
+      return res.status(404).json({ message: 'Version not found' });
+    }
+
+    return res.status(200).json({ message: 'Version snapshot deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to delete resume version', error: error.message });
   }
 });
 

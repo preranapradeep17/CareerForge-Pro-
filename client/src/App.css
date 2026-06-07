@@ -1003,3 +1003,121 @@ label {
     margin-right: 0;
   }
 }
+
+/* ─── Premium Upgrade Modal ────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 9, 20, 0.85);
+  backdrop-filter: blur(12px);
+  display: grid;
+  place-items: center;
+  z-index: 10000;
+  padding: 1.5rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-surface {
+  background: radial-gradient(circle at top right, rgba(101, 184, 255, 0.15), var(--panel));
+  border: 1px solid rgba(101, 184, 255, 0.22);
+  border-radius: 32px;
+  width: min(100%, 500px);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.65);
+  padding: 2.2rem;
+  display: grid;
+  gap: 1.5rem;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.6rem;
+  background: linear-gradient(135deg, white, var(--muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.modal-close-button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.modal-close-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.05);
+}
+
+.modal-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.modal-benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #c5d4f0;
+  font-size: 0.96rem;
+}
+
+.modal-benefit-icon {
+  color: var(--success);
+  font-weight: bold;
+}
+
+.modal-pricing {
+  text-align: center;
+  padding: 1.1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 20px;
+  border: 1px solid rgba(151, 182, 255, 0.08);
+}
+
+.modal-pricing strong {
+  display: block;
+  font-size: 1.8rem;
+  font-family: 'Space Grotesk', sans-serif;
+  color: white;
+}
+
+.modal-pricing span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

@@ -23,7 +23,7 @@ import {
 } from './store/resumeSlice';
 import { scoreResumeAgainstJD } from './utils/atsScorer';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5001/api';
 const AUTO_SAVE_DELAY_MS = 1500;
 const TEMPLATE_OPTIONS = ['classic', 'modern', 'minimal'];
 
@@ -94,6 +94,7 @@ const aiPost = async (endpoint, body, token) => {
 };
 
 function App() {
+  console.log('[CareerForge API] Current targeted backend URL:', API_BASE);
   return (
     <>
       <Toaster position="top-right" toastOptions={{ duration: 2800 }} />
@@ -121,7 +122,7 @@ function AppRoutes() {
       />
       <Route element={<ProtectedRoute isLoggedIn={app.isLoggedIn} />}>
         <Route
-          element={<ProtectedLayout user={app.user} onLogout={app.handleLogout} />}
+          element={<ProtectedLayout app={app} />}
         >
           <Route path="/dashboard" element={<DashboardPage app={app} />} />
           <Route path="/resume-builder" element={<ResumeBuilderPage app={app} />} />
@@ -155,6 +156,257 @@ function useCareerForgeApp() {
   const [originalBullet, setOriginalBullet] = useState('');
   const [targetKeywords, setTargetKeywords] = useState('');
   const [isParsingResume, setIsParsingResume] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isLoggedIn || !token) return;
+
+    const queryParams = new URLSearchParams(window.location.search);
+    const payment = queryParams.get('payment');
+
+    if (payment === 'success') {
+      toast.success('Your subscription was upgraded to Pro! Welcome aboard.');
+      fetchProfile(token, { silent: true });
+      navigate('/dashboard', { replace: true });
+    } else if (payment === 'cancel') {
+      toast.error('Upgrade process cancelled.');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isLoggedIn, token]);
+
+  const [resumes, setResumes] = useState([]);
+  const [loadingResumes, setLoadingResumes] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+
+  const fetchResumes = async () => {
+    if (!token) return;
+    setLoadingResumes(true);
+    try {
+      const response = await fetch(`${API_BASE}/resumes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setResumes(data.resumes || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch resumes:', error.message);
+    } finally {
+      setLoadingResumes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && token) {
+      fetchResumes();
+    }
+  }, [isLoggedIn, token]);
+
+  const handleDeleteResume = async (id) => {
+    if (!confirm('Are you sure you want to delete this resume?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to delete resume');
+      toast.success('Resume deleted');
+      fetchResumes();
+      fetchProfile(token, { silent: true }); // refresh resumeCount
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleLoadResume = (resume) => {
+    setResumeId(resume._id);
+    dispatch(updateResumeField({ field: 'fullName', value: resume.personalInfo?.fullName || '' }));
+    dispatch(updateResumeField({ field: 'title', value: resume.targetJD || '' }));
+    dispatch(updateResumeField({ field: 'summary', value: resume.personalInfo?.summary || '' }));
+    dispatch(updateResumeField({
+      field: 'skills',
+      value: Array.isArray(resume.skills) ? resume.skills.join(', ') : '',
+    }));
+    dispatch(setTemplate(resume.template || 'classic'));
+    toast.success('Resume loaded in builder');
+    navigate('/resume-builder');
+  };
+
+  const handleExportPdfDirectly = async (resume) => {
+    if (user?.plan !== 'pro') {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
+    const toastId = toast.loading('Exporting PDF...');
+    try {
+      const response = await fetch(`${API_BASE}/resumes/export/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          personalInfo: resume.personalInfo,
+          experience: resume.experience,
+          education: resume.education,
+          skills: resume.skills,
+          projects: resume.projects,
+          atsScore: resume.atsScore,
+          template: resume.template,
+          targetJD: resume.targetJD,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export PDF');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = (resume.personalInfo?.fullName || 'resume')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'resume';
+
+      link.href = downloadUrl;
+      link.download = `${safeName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('PDF exported', { id: toastId });
+    } catch (error) {
+      toast.error(error.message, { id: toastId });
+    }
+  };
+
+  const fetchVersions = async (targetId = resumeId) => {
+    if (!token || !targetId) return;
+    setLoadingVersions(true);
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${targetId}/versions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setVersions(data.versions || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch versions:', error.message);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (resumeId) {
+      fetchVersions();
+    } else {
+      setVersions([]);
+    }
+  }, [resumeId]);
+
+  const handleSaveVersion = async () => {
+    if (!resumeId) {
+      toast.error('Save your resume first before capturing snapshots.');
+      return;
+    }
+
+    const name = prompt('Enter a name for this resume version/snapshot (e.g., "Version with Tailored Summary"):');
+    if (!name || !name.trim()) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${resumeId}/versions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ versionName: name.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to save version snapshot');
+      toast.success('Version snapshot saved');
+      fetchVersions();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleRestoreVersion = async (versionId) => {
+    if (!confirm('Are you sure you want to restore this version? Your current changes will be replaced.')) return;
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${resumeId}/versions/${versionId}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to restore version snapshot');
+
+      const restored = data.resume;
+      dispatch(updateResumeField({ field: 'fullName', value: restored.personalInfo?.fullName || '' }));
+      dispatch(updateResumeField({ field: 'title', value: restored.targetJD || '' }));
+      dispatch(updateResumeField({ field: 'summary', value: restored.personalInfo?.summary || '' }));
+      dispatch(updateResumeField({
+        field: 'skills',
+        value: Array.isArray(restored.skills) ? restored.skills.join(', ') : '',
+      }));
+      dispatch(setTemplate(restored.template || 'classic'));
+
+      toast.success('Resume restored to selected version snapshot');
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleDeleteVersion = async (versionId) => {
+    if (!confirm('Delete this version snapshot?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${resumeId}/versions/${versionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to delete snapshot');
+      toast.success('Snapshot deleted');
+      fetchVersions();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    if (!token) {
+      toast.error('Please log in first to upgrade.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/payments/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to start upgrade flow');
+      }
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const hasResumeContent = useMemo(
     () => Object.values(resumeData).some((value) => value.trim().length > 0),
@@ -205,6 +457,9 @@ function useCareerForgeApp() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.upgradeRequired) {
+          setIsUpgradeModalOpen(true);
+        }
         throw new Error(data.message || 'Failed to auto-save resume');
       }
 
@@ -407,6 +662,11 @@ function useCareerForgeApp() {
       return;
     }
 
+    if (user?.plan !== 'pro') {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
     setIsExportingPdf(true);
 
     try {
@@ -564,6 +824,11 @@ function useCareerForgeApp() {
       return;
     }
 
+    if (user?.plan !== 'pro') {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
     dispatch(setAiLoading(true));
     try {
       const result = await aiPost('analyze-jd', { jobDescription }, token);
@@ -578,6 +843,11 @@ function useCareerForgeApp() {
   const handleRewriteBullet = async () => {
     if (!originalBullet.trim()) {
       toast.error('Add an original bullet first');
+      return;
+    }
+
+    if (user?.plan !== 'pro') {
+      setIsUpgradeModalOpen(true);
       return;
     }
 
@@ -659,6 +929,22 @@ function useCareerForgeApp() {
     handleAddSuggestedSkill,
     handleApplyImprovedSummary,
     fetchProfile,
+    isUpgradeModalOpen,
+    setIsUpgradeModalOpen,
+    handleUpgrade,
+    resumes,
+    loadingResumes,
+    fetchResumes,
+    handleDeleteResume,
+    handleLoadResume,
+    handleExportPdfDirectly,
+    versions,
+    loadingVersions,
+    fetchVersions,
+    handleSaveVersion,
+    handleRestoreVersion,
+    handleDeleteVersion,
+    resumeId,
   };
 }
 
@@ -670,7 +956,8 @@ function ProtectedRoute({ isLoggedIn }) {
   return <Outlet />;
 }
 
-function ProtectedLayout({ user, onLogout }) {
+function ProtectedLayout({ app }) {
+  const { user, handleLogout, isUpgradeModalOpen, setIsUpgradeModalOpen, handleUpgrade } = app;
   return (
     <div className="workspace-shell">
       <aside className="workspace-sidebar">
@@ -700,8 +987,11 @@ function ProtectedLayout({ user, onLogout }) {
           <div className="user-badge">
             <strong>{user?.name || 'CareerForge User'}</strong>
             <span>{user?.email || 'No email loaded yet'}</span>
+            <span style={{ fontSize: '0.75rem', color: user?.plan === 'pro' ? 'var(--success)' : 'var(--muted)', fontWeight: 'bold', marginTop: '0.2rem' }}>
+              Plan: {user?.plan?.toUpperCase() || 'STARTER'}
+            </span>
           </div>
-          <button type="button" className="ghost-button" onClick={() => onLogout()}>
+          <button type="button" className="ghost-button" onClick={() => handleLogout()}>
             Logout
           </button>
         </div>
@@ -710,6 +1000,9 @@ function ProtectedLayout({ user, onLogout }) {
       <div className="workspace-main">
         <Outlet />
       </div>
+      {isUpgradeModalOpen && (
+        <UpgradeModal onClose={() => setIsUpgradeModalOpen(false)} onUpgrade={handleUpgrade} />
+      )}
     </div>
   );
 }
@@ -1003,6 +1296,65 @@ function DashboardPage({ app }) {
       </section>
 
       <section className="dashboard-grid">
+        <article className="surface-card" style={{ gridColumn: 'span 2' }}>
+          <div className="surface-card__header">
+            <h3>Your Resumes</h3>
+            <NavLink to="/resume-builder" className="primary-button" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }}>
+              Create New Resume
+            </NavLink>
+          </div>
+          {app.loadingResumes ? (
+            <p className="ai-helper">Loading resumes from database...</p>
+          ) : app.resumes.length > 0 ? (
+            <div className="settings-grid" style={{ marginTop: '1.2rem', gap: '1.2rem' }}>
+              {app.resumes.map((resume) => (
+                <div key={resume._id} className="surface-card" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(151, 182, 255, 0.1)', padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', borderRadius: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.1rem', fontFamily: "'Space Grotesk', sans-serif" }}>{resume.personalInfo?.fullName || 'Untitled Resume'}</h4>
+                    <span className="status-pill status-pill--accent" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>{resume.template}</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--muted)' }}>
+                    Target Role: {resume.targetJD || 'General Role'}
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--muted)' }}>
+                    ATS Score: <strong style={{ color: 'white' }}>{resume.atsScore}%</strong>
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      style={{ padding: '0.45rem 0.9rem', fontSize: '0.76rem', flex: 1 }}
+                      onClick={() => app.handleLoadResume(resume)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      style={{ padding: '0.45rem 0.9rem', fontSize: '0.76rem', flex: 1 }}
+                      onClick={() => app.handleExportPdfDirectly(resume)}
+                    >
+                      Export PDF
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      style={{ padding: '0.45rem 0.9rem', fontSize: '0.76rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                      onClick={() => app.handleDeleteResume(resume._id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="ai-helper" style={{ textAlign: 'center', padding: '2rem' }}>
+              You haven't created any resumes yet. Clear the form or click "Create New Resume" to begin.
+            </p>
+          )}
+        </article>
+
         <article className="surface-card">
           <div className="surface-card__header">
             <h3>AI Suggestions</h3>
@@ -1054,97 +1406,101 @@ function ResumeBuilderPage({ app }) {
       </header>
 
       <section className="builder-grid">
-        <form className="surface-card builder-form">
-          <div className="surface-card__header">
-            <h3>Resume Content</h3>
-            <span className="status-pill">
-              {app.isSaving
-                ? 'Auto-saving...'
-                : app.saveError
-                  ? `Error: ${app.saveError}`
-                  : app.lastSavedAt
-                    ? `Saved at ${app.lastSavedAt.toLocaleTimeString()}`
-                    : 'Ready to save'}
-            </span>
-          </div>
-
-          <label>
-            Upload Resume (PDF)
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={app.handleResumeUpload}
-              disabled={app.isParsingResume}
-            />
-          </label>
-
-          <label>
-            Full Name
-            <input
-              type="text"
-              name="fullName"
-              value={app.resumeData.fullName}
-              onChange={app.handleResumeChange}
-              placeholder="Your full name"
-            />
-          </label>
-
-          <label>
-            Target Job Title
-            <input
-              type="text"
-              name="title"
-              value={app.resumeData.title}
-              onChange={app.handleResumeChange}
-              placeholder="Frontend Developer"
-            />
-          </label>
-
-          <label>
-            Professional Summary
-            <textarea
-              name="summary"
-              value={app.resumeData.summary}
-              onChange={app.handleResumeChange}
-              rows={6}
-              placeholder="Write a sharp professional summary."
-            />
-          </label>
-
-          <label>
-            Skills (comma separated)
-            <input
-              type="text"
-              name="skills"
-              value={app.resumeData.skills}
-              onChange={app.handleResumeChange}
-              placeholder="React, Node.js, MongoDB"
-            />
-          </label>
-
-          <div style={{ display: 'grid', gap: '0.55rem' }}>
-            <span style={{ color: '#d8e5fb', fontSize: '0.92rem' }}>Resume Template</span>
-            <div className="template-switcher">
-              {TEMPLATE_LIST.map((tpl) => (
-                <button
-                  key={tpl.key}
-                  type="button"
-                  className={`template-switcher__btn${app.template === tpl.key ? ' template-switcher__btn--active' : ''}`}
-                  onClick={() => app.setTemplate(tpl.key)}
-                >
-                  <span
-                    className="template-switcher__swatch"
-                    style={{ background: tpl.accent }}
-                  />
-                  <span className="template-switcher__name">{tpl.label}</span>
-                  {app.template === tpl.key && (
-                    <span className="template-switcher__tick">✓</span>
-                  )}
-                </button>
-              ))}
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          <form className="surface-card builder-form">
+            <div className="surface-card__header">
+              <h3>Resume Content</h3>
+              <span className="status-pill">
+                {app.isSaving
+                  ? 'Auto-saving...'
+                  : app.saveError
+                    ? `Error: ${app.saveError}`
+                    : app.lastSavedAt
+                      ? `Saved at ${app.lastSavedAt.toLocaleTimeString()}`
+                      : 'Ready to save'}
+              </span>
             </div>
-          </div>
-        </form>
+
+            <label>
+              Upload Resume (PDF)
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={app.handleResumeUpload}
+                disabled={app.isParsingResume}
+              />
+            </label>
+
+            <label>
+              Full Name
+              <input
+                type="text"
+                name="fullName"
+                value={app.resumeData.fullName}
+                onChange={app.handleResumeChange}
+                placeholder="Your full name"
+              />
+            </label>
+
+            <label>
+              Target Job Title
+              <input
+                type="text"
+                name="title"
+                value={app.resumeData.title}
+                onChange={app.handleResumeChange}
+                placeholder="Frontend Developer"
+              />
+            </label>
+
+            <label>
+              Professional Summary
+              <textarea
+                name="summary"
+                value={app.resumeData.summary}
+                onChange={app.handleResumeChange}
+                rows={6}
+                placeholder="Write a sharp professional summary."
+              />
+            </label>
+
+            <label>
+              Skills (comma separated)
+              <input
+                type="text"
+                name="skills"
+                value={app.resumeData.skills}
+                onChange={app.handleResumeChange}
+                placeholder="React, Node.js, MongoDB"
+              />
+            </label>
+
+            <div style={{ display: 'grid', gap: '0.55rem' }}>
+              <span style={{ color: '#d8e5fb', fontSize: '0.92rem' }}>Resume Template</span>
+              <div className="template-switcher">
+                {TEMPLATE_LIST.map((tpl) => (
+                  <button
+                    key={tpl.key}
+                    type="button"
+                    className={`template-switcher__btn${app.template === tpl.key ? ' template-switcher__btn--active' : ''}`}
+                    onClick={() => app.setTemplate(tpl.key)}
+                  >
+                    <span
+                      className="template-switcher__swatch"
+                      style={{ background: tpl.accent }}
+                    />
+                    <span className="template-switcher__name">{tpl.label}</span>
+                    {app.template === tpl.key && (
+                      <span className="template-switcher__tick">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </form>
+
+          <VersionHistorySection app={app} />
+        </div>
 
         <article className="surface-card builder-preview">
           <div className="surface-card__header">
@@ -1428,33 +1784,57 @@ function TemplatesPage({ app }) {
 function CoverLetterPage({ app }) {
   const [letterJobDescription, setLetterJobDescription] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!letterJobDescription.trim()) {
       toast.error('Paste a job description first');
       return;
     }
 
-    const skills = app.resumeData.skills
-      .split(',')
-      .map((skill) => skill.trim())
-      .filter(Boolean)
-      .slice(0, 4)
-      .join(', ');
+    if (app.user?.plan !== 'pro') {
+      app.setIsUpgradeModalOpen(true);
+      return;
+    }
 
-    const generated = `Dear Hiring Manager,
+    setIsGenerating(true);
+    const toastId = toast.loading('Generating cover letter with Gemini AI...');
 
-I am excited to apply for the ${app.resumeData.title || 'role'} opportunity. With experience building user-focused solutions and a growing toolkit across ${skills || 'modern web technologies'}, I bring a strong mix of execution, adaptability, and product-minded thinking.
+    try {
+      const skillsArray = app.resumeData.skills
+        .split(',')
+        .map((skill) => skill.trim())
+        .filter(Boolean);
 
-My resume highlights work that combines structured problem solving with polished delivery. I am especially motivated by roles where I can improve user experience, collaborate closely with teams, and deliver measurable results.
+      const response = await fetch(`${API_BASE}/ai/generate-cover-letter`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${app.token}`,
+        },
+        body: JSON.stringify({
+          resumeData: {
+            fullName: app.resumeData.fullName || app.user?.name || 'Applicant',
+            title: app.resumeData.title || 'Target Role',
+            summary: app.resumeData.summary || '',
+            skills: skillsArray,
+          },
+          jobDescription: letterJobDescription.trim(),
+        }),
+      });
 
-I would welcome the opportunity to contribute this energy and discipline to your team.
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate cover letter');
+      }
 
-Sincerely,
-${app.resumeData.fullName || app.user?.name || 'Your Name'}`;
-
-    setCoverLetter(generated);
-    toast.success('Cover letter generated');
+      setCoverLetter(data.coverLetter || '');
+      toast.success('Cover letter generated', { id: toastId });
+    } catch (error) {
+      toast.error(error.message, { id: toastId });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -1482,8 +1862,13 @@ ${app.resumeData.fullName || app.user?.name || 'Your Name'}`;
               placeholder="Paste the target role description here."
             />
           </label>
-          <button type="button" className="primary-button" onClick={handleGenerate}>
-            Generate
+          <button
+            type="button"
+            className="primary-button"
+            onClick={handleGenerate}
+            disabled={isGenerating}
+          >
+            {isGenerating ? 'Generating...' : 'Generate with Gemini'}
           </button>
         </article>
 
@@ -1530,7 +1915,19 @@ function SettingsPage({ app }) {
         <article className="surface-card">
           <h3>Subscription</h3>
           <p>Current resume count: {app.user?.resumeCount ?? 0}</p>
-          <p>Upgrade messaging and billing controls can live here later.</p>
+          <p><strong>Current Plan:</strong> {app.user?.plan === 'pro' ? 'Pro ($12/mo)' : 'Starter (Free)'}</p>
+          {app.user?.plan !== 'pro' ? (
+            <button
+              type="button"
+              className="primary-button"
+              style={{ marginTop: '1rem', width: '100%' }}
+              onClick={app.handleUpgrade}
+            >
+              Upgrade to Pro
+            </button>
+          ) : (
+            <p style={{ color: 'var(--success)', fontWeight: '600', marginTop: '0.5rem' }}>✓ Pro Plan is Active</p>
+          )}
         </article>
         <article className="surface-card surface-card--danger">
           <h3>Delete Account</h3>
@@ -1562,6 +1959,113 @@ function ChipRow({ title, items, className }) {
         )}
       </div>
     </div>
+  );
+}
+
+function UpgradeModal({ onClose, onUpgrade }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-surface" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>CareerForge Pro</h3>
+          <button type="button" className="modal-close-button" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <p className="ai-helper">Unlock unlimited resume generation, PDF exports, cover letter writing, and professional AI-powered tools.</p>
+        <ul className="modal-benefits">
+          <li className="modal-benefit-item">
+            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> Unlimited Resumes (Starter limit: 1)
+          </li>
+          <li className="modal-benefit-item">
+            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> A4 PDF Downloads
+          </li>
+          <li className="modal-benefit-item">
+            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> AI Job Description keywords mapping
+          </li>
+          <li className="modal-benefit-item">
+            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> AI Bullet Rewriter & quantified suggestions
+          </li>
+        </ul>
+        <div className="modal-pricing">
+          <strong>$12.00 / month</strong>
+          <span>Cancel anytime in one click.</span>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="primary-button" onClick={onUpgrade}>
+            Upgrade Now
+          </button>
+          <button type="button" className="ghost-button" onClick={onClose}>
+            Maybe Later
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VersionHistorySection({ app }) {
+  if (!app.resumeId) {
+    return (
+      <article className="surface-card">
+        <div className="surface-card__header">
+          <h3>Version History</h3>
+        </div>
+        <p className="ai-helper">Save your resume first to activate version history snapshots.</p>
+      </article>
+    );
+  }
+
+  return (
+    <article className="surface-card">
+      <div className="surface-card__header">
+        <h3>Version History</h3>
+        <button
+          type="button"
+          className="primary-button"
+          style={{ padding: '0.45rem 0.9rem', fontSize: '0.78rem' }}
+          onClick={app.handleSaveVersion}
+        >
+          Save Snapshot
+        </button>
+      </div>
+      {app.loadingVersions ? (
+        <p className="ai-helper">Loading snapshots...</p>
+      ) : app.versions.length > 0 ? (
+        <ul className="insight-list" style={{ marginTop: '1.2rem', listStyle: 'none', paddingLeft: 0, display: 'grid', gap: '0.8rem' }}>
+          {app.versions.map((ver) => (
+            <li key={ver._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid rgba(151, 182, 255, 0.08)' }}>
+              <div>
+                <strong style={{ display: 'block', fontSize: '0.92rem' }}>{ver.versionName}</strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+                  {new Date(ver.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  style={{ padding: '0.25rem 0.6rem', fontSize: '0.74rem' }}
+                  onClick={() => app.handleRestoreVersion(ver._id)}
+                >
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  style={{ padding: '0.25rem 0.6rem', fontSize: '0.74rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                  onClick={() => app.handleDeleteVersion(ver._id)}
+                >
+                  ✕
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="ai-helper" style={{ marginTop: '1rem' }}>No snapshots saved yet. Capture your first version snapshot above!</p>
+      )}
+    </article>
   );
 }
 

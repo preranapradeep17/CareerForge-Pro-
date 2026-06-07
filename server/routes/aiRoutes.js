@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { protect } = require('../middleware/authMiddleware');
+const { requirePro } = require('../middleware/gateMiddleware');
 const { generateJSON } = require('../services/geminiService');
 const { buildResumeSummaryPrompt } = require('../prompts/resumeSummaryPrompt');
 const { buildAtsAnalysisPrompt } = require('../prompts/atsAnalysisPrompt');
@@ -9,6 +10,7 @@ const { buildSkillsSuggestionPrompt } = require('../prompts/skillsSuggestionProm
 const { buildJdAnalysisPrompt } = require('../prompts/jdAnalysisPrompt');
 const { buildBulletRewritePrompt } = require('../prompts/bulletRewritePrompt');
 const { buildResumeParsePrompt } = require('../prompts/resumeParsePrompt');
+const { buildCoverLetterPrompt } = require('../prompts/coverLetterPrompt');
 
 const router = express.Router();
 const upload = multer({
@@ -128,7 +130,7 @@ router.post('/suggest-skills', protect, async (req, res) => {
 // ─── POST /api/ai/analyze-jd ────────────────────────────────────────────────
 // Body: { jobDescription: string }
 // Returns: { hardSkills: string[], softSkills: string[], actionVerbs: string[], domain: string[], seniorityLevel: string[] }
-router.post('/analyze-jd', protect, async (req, res) => {
+router.post('/analyze-jd', protect, requirePro, async (req, res) => {
   try {
     const { jobDescription } = req.body;
 
@@ -149,7 +151,7 @@ router.post('/analyze-jd', protect, async (req, res) => {
 // ─── POST /api/ai/rewrite-bullet ────────────────────────────────────────────
 // Body: { originalBullet: string, jobDescription?: string, targetKeywords?: string[] | string }
 // Returns: { rewrittenBullet: string, keywordsUsed: string[], improvementNotes: string[] }
-router.post('/rewrite-bullet', protect, async (req, res) => {
+router.post('/rewrite-bullet', protect, requirePro, async (req, res) => {
   try {
     const { originalBullet, jobDescription, targetKeywords } = req.body;
 
@@ -209,6 +211,30 @@ router.post('/parse-resume', protect, upload.single('resume'), async (req, res) 
     }
     console.error('[AI] parse-resume error:', error.message);
     return res.status(500).json({ message: 'Resume parsing failed', error: error.message });
+  }
+});
+
+// ─── POST /api/ai/generate-cover-letter ─────────────────────────────────────
+// Body: { resumeData: { fullName, title, summary, skills }, jobDescription: string }
+// Returns: { coverLetter: string }
+router.post('/generate-cover-letter', protect, requirePro, async (req, res) => {
+  try {
+    const { resumeData, jobDescription } = req.body;
+
+    if (!resumeData || typeof resumeData !== 'object') {
+      return res.status(400).json({ message: 'resumeData is required and must be an object' });
+    }
+    if (!jobDescription || typeof jobDescription !== 'string' || jobDescription.trim().length === 0) {
+      return res.status(400).json({ message: 'jobDescription is required and must be a non-empty string' });
+    }
+
+    const prompt = buildCoverLetterPrompt({ resumeData, jobDescription });
+    const result = await generateJSON(prompt);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[AI] generate-cover-letter error:', error.message);
+    return res.status(500).json({ message: 'AI cover letter request failed', error: error.message });
   }
 });
 
