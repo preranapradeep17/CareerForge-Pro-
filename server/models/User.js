@@ -24,6 +24,27 @@ const userSchema = new mongoose.Schema(
       enum: ['free', 'pro'],
       default: 'free',
     },
+    planStatus: {
+      type: String,
+      enum: ['inactive', 'active', 'trialing', 'past_due', 'canceled', 'incomplete', 'incomplete_expired', 'unpaid', 'paused'],
+      default: 'inactive',
+    },
+    planCurrentPeriodEnd: {
+      type: Date,
+      default: null,
+    },
+    stripeCustomerId: {
+      type: String,
+      default: '',
+    },
+    stripeSubscriptionId: {
+      type: String,
+      default: '',
+    },
+    stripePriceId: {
+      type: String,
+      default: '',
+    },
     resumeCount: {
       type: Number,
       default: 0,

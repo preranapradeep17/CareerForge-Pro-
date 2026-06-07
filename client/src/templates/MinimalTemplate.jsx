@@ -3,8 +3,8 @@
  * Single-column, pure white, editorial feel.
  * Small-caps labels, hairline dividers, monochrome skills.
  */
-export default function MinimalTemplate({ resumeData, atsScore }) {
-  const skills = resumeData.skills
+export default function MinimalTemplate({ resumeData = {}, atsScore = 0 }) {
+  const skills = (resumeData?.skills || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);

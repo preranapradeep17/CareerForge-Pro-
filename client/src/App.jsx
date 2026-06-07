@@ -23,7 +23,7 @@ import {
 } from './store/resumeSlice';
 import { scoreResumeAgainstJD } from './utils/atsScorer';
 
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 const AUTO_SAVE_DELAY_MS = 1500;
 const TEMPLATE_OPTIONS = ['classic', 'modern', 'minimal'];
 
@@ -158,22 +158,6 @@ function useCareerForgeApp() {
   const [isParsingResume, setIsParsingResume] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isLoggedIn || !token) return;
-
-    const queryParams = new URLSearchParams(window.location.search);
-    const payment = queryParams.get('payment');
-
-    if (payment === 'success') {
-      toast.success('Your subscription was upgraded to Pro! Welcome aboard.');
-      fetchProfile(token, { silent: true });
-      navigate('/dashboard', { replace: true });
-    } else if (payment === 'cancel') {
-      toast.error('Upgrade process cancelled.');
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isLoggedIn, token]);
-
   const [resumes, setResumes] = useState([]);
   const [loadingResumes, setLoadingResumes] = useState(false);
   const [versions, setVersions] = useState([]);
@@ -197,9 +181,14 @@ function useCareerForgeApp() {
     }
   };
 
+  const runFetchResumes = useEffectEvent(() => {
+    fetchResumes();
+  });
+
   useEffect(() => {
     if (isLoggedIn && token) {
-      fetchResumes();
+      const timer = window.setTimeout(() => runFetchResumes(), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [isLoggedIn, token]);
 
@@ -303,12 +292,24 @@ function useCareerForgeApp() {
     }
   };
 
+  const runFetchVersions = useEffectEvent(() => {
+    fetchVersions();
+  });
+
+  const runClearVersions = useEffectEvent(() => {
+    setVersions([]);
+  });
+
   useEffect(() => {
-    if (resumeId) {
-      fetchVersions();
-    } else {
-      setVersions([]);
-    }
+    const timer = window.setTimeout(() => {
+      if (resumeId) {
+        runFetchVersions();
+      } else {
+        runClearVersions();
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [resumeId]);
 
   const handleSaveVersion = async () => {
@@ -398,6 +399,37 @@ function useCareerForgeApp() {
       if (!response.ok) {
         throw new Error(data.message || 'Failed to start upgrade flow');
       }
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    if (!token) {
+      toast.error('Please log in first to manage billing.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/payments/billing-portal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to open billing portal');
+      }
+
       if (data.url) {
         window.location.href = data.url;
       }
@@ -509,6 +541,8 @@ function useCareerForgeApp() {
       if (!silent) {
         toast.success('Profile refreshed');
       }
+
+      return data.user;
     } catch (error) {
       if (error.message.toLowerCase().includes('unauthorized')) {
         toast.error('Session expired. Please login again.');
@@ -516,12 +550,49 @@ function useCareerForgeApp() {
       } else if (!silent) {
         toast.error(error.message);
       }
+
+      return null;
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
   }
+
+  async function refreshProfileAfterCheckout(activeToken) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const refreshedUser = await fetchProfile(activeToken, { silent: true });
+
+      if (refreshedUser?.plan === 'pro') {
+        toast.success('Pro plan is active.');
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    toast('Payment succeeded. Pro access will update after Stripe confirms the webhook.');
+  }
+
+  const runRefreshProfileAfterCheckout = useEffectEvent((activeToken) => {
+    refreshProfileAfterCheckout(activeToken);
+  });
+
+  useEffect(() => {
+    if (!isLoggedIn || !token) return;
+
+    const queryParams = new URLSearchParams(window.location.search);
+    const payment = queryParams.get('payment');
+
+    if (payment === 'success') {
+      toast.success('Payment completed. Activating Pro access...');
+      runRefreshProfileAfterCheckout(token);
+      navigate('/dashboard', { replace: true });
+    } else if (payment === 'cancel') {
+      toast.error('Upgrade process cancelled.');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isLoggedIn, token, navigate]);
 
   const runSaveResumeEffect = useEffectEvent(() => {
     saveResume();
@@ -932,6 +1003,7 @@ function useCareerForgeApp() {
     isUpgradeModalOpen,
     setIsUpgradeModalOpen,
     handleUpgrade,
+    handleManageBilling,
     resumes,
     loadingResumes,
     fetchResumes,
@@ -957,7 +1029,7 @@ function ProtectedRoute({ isLoggedIn }) {
 }
 
 function ProtectedLayout({ app }) {
-  const { user, handleLogout, isUpgradeModalOpen, setIsUpgradeModalOpen, handleUpgrade } = app;
+  const { user, loading, handleLogout, isUpgradeModalOpen, setIsUpgradeModalOpen, handleUpgrade } = app;
   return (
     <div className="workspace-shell">
       <aside className="workspace-sidebar">
@@ -985,11 +1057,14 @@ function ProtectedLayout({ app }) {
 
         <div className="workspace-sidebar__footer">
           <div className="user-badge">
-            <strong>{user?.name || 'CareerForge User'}</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong>{user?.name || 'CareerForge User'}</strong>
+              {user?.plan === 'pro'
+                ? <span className="pro-badge">✦ Pro</span>
+                : <span className="free-badge">Free</span>
+              }
+            </div>
             <span>{user?.email || 'No email loaded yet'}</span>
-            <span style={{ fontSize: '0.75rem', color: user?.plan === 'pro' ? 'var(--success)' : 'var(--muted)', fontWeight: 'bold', marginTop: '0.2rem' }}>
-              Plan: {user?.plan?.toUpperCase() || 'STARTER'}
-            </span>
           </div>
           <button type="button" className="ghost-button" onClick={() => handleLogout()}>
             Logout
@@ -1001,7 +1076,7 @@ function ProtectedLayout({ app }) {
         <Outlet />
       </div>
       {isUpgradeModalOpen && (
-        <UpgradeModal onClose={() => setIsUpgradeModalOpen(false)} onUpgrade={handleUpgrade} />
+        <UpgradeModal onClose={() => setIsUpgradeModalOpen(false)} onUpgrade={handleUpgrade} isLoading={loading} />
       )}
     </div>
   );
@@ -1378,6 +1453,33 @@ function DashboardPage({ app }) {
             ))}
           </ul>
         </article>
+
+        {app.user?.plan !== 'pro' && (
+          <article className="upgrade-cta-card" style={{ gridColumn: 'span 2' }}>
+            <h3 className="upgrade-cta-card__title">✦ Unlock CareerForge Pro</h3>
+            <p className="upgrade-cta-card__body">
+              You're on the free Starter plan. Upgrade to Pro to unlock PDF exports, unlimited resumes, cover letter generation, and full AI optimization tools.
+            </p>
+            <ul className="upgrade-cta-card__features">
+              <li className="upgrade-cta-card__feature">✓ Unlimited Resumes</li>
+              <li className="upgrade-cta-card__feature">✓ A4 PDF Export</li>
+              <li className="upgrade-cta-card__feature">✓ Cover Letter AI</li>
+              <li className="upgrade-cta-card__feature">✓ JD Analyzer</li>
+              <li className="upgrade-cta-card__feature">✓ Bullet Rewriter</li>
+            </ul>
+            <div>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={app.handleUpgrade}
+                disabled={app.loading}
+                id="dashboard-upgrade-btn"
+              >
+                {app.loading ? 'Opening Stripe...' : 'Upgrade to Pro — $12/mo'}
+              </button>
+            </div>
+          </article>
+        )}
       </section>
     </div>
   );
@@ -1904,9 +2006,16 @@ function SettingsPage({ app }) {
       <section className="settings-grid">
         <article className="surface-card">
           <h3>Profile</h3>
-          <p><strong>Name:</strong> {app.user?.name || 'Not loaded yet'}</p>
-          <p><strong>Email:</strong> {app.user?.email || 'Not loaded yet'}</p>
-          <p><strong>Plan:</strong> {app.user?.plan || 'Starter'}</p>
+          <div className="subscription-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div className="subscription-info-item">
+              <span className="subscription-info-item__label">Name</span>
+              <span className="subscription-info-item__value">{app.user?.name || '—'}</span>
+            </div>
+            <div className="subscription-info-item">
+              <span className="subscription-info-item__label">Email</span>
+              <span className="subscription-info-item__value" style={{ fontSize: '0.82rem', wordBreak: 'break-all' }}>{app.user?.email || '—'}</span>
+            </div>
+          </div>
         </article>
         <article className="surface-card">
           <h3>Password</h3>
@@ -1914,20 +2023,7 @@ function SettingsPage({ app }) {
         </article>
         <article className="surface-card">
           <h3>Subscription</h3>
-          <p>Current resume count: {app.user?.resumeCount ?? 0}</p>
-          <p><strong>Current Plan:</strong> {app.user?.plan === 'pro' ? 'Pro ($12/mo)' : 'Starter (Free)'}</p>
-          {app.user?.plan !== 'pro' ? (
-            <button
-              type="button"
-              className="primary-button"
-              style={{ marginTop: '1rem', width: '100%' }}
-              onClick={app.handleUpgrade}
-            >
-              Upgrade to Pro
-            </button>
-          ) : (
-            <p style={{ color: 'var(--success)', fontWeight: '600', marginTop: '0.5rem' }}>✓ Pro Plan is Active</p>
-          )}
+          <PlanStatusSection app={app} />
         </article>
         <article className="surface-card surface-card--danger">
           <h3>Delete Account</h3>
@@ -1962,38 +2058,135 @@ function ChipRow({ title, items, className }) {
   );
 }
 
-function UpgradeModal({ onClose, onUpgrade }) {
+function getPlanStatusClass(status) {
+  if (!status || status === 'inactive') return 'inactive';
+  if (status === 'active') return 'active';
+  if (status === 'trialing') return 'trialing';
+  if (status === 'past_due') return 'past_due';
+  if (status === 'canceled' || status === 'unpaid') return 'inactive';
+  return 'inactive';
+}
+
+function PlanStatusSection({ app }) {
+  const { user, loading, handleUpgrade, handleManageBilling } = app;
+  const isPro = user?.plan === 'pro';
+  const statusKey = getPlanStatusClass(user?.planStatus);
+  const renewalDate = user?.planCurrentPeriodEnd
+    ? new Date(user.planCurrentPeriodEnd).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null;
+
+  return (
+    <>
+      <div className="subscription-info-grid">
+        <div className="subscription-info-item">
+          <span className="subscription-info-item__label">Current Plan</span>
+          <span className="subscription-info-item__value">
+            {isPro ? 'Pro — $12/mo' : 'Starter — Free'}
+          </span>
+        </div>
+        <div className="subscription-info-item">
+          <span className="subscription-info-item__label">Status</span>
+          <span className={`plan-status-badge plan-status-badge--${statusKey}`}>
+            {statusKey === 'active' && '●'} {user?.planStatus || 'inactive'}
+          </span>
+        </div>
+        <div className="subscription-info-item">
+          <span className="subscription-info-item__label">Resumes Created</span>
+          <span className="subscription-info-item__value">{user?.resumeCount ?? 0}</span>
+        </div>
+        {isPro && (
+          <div className="subscription-info-item">
+            <span className="subscription-info-item__label">
+              {user?.planStatus === 'canceled' ? 'Access Until' : 'Renews On'}
+            </span>
+            <span className="subscription-info-item__value" style={{ fontSize: '0.82rem' }}>
+              {renewalDate || '—'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {!isPro ? (
+        <button
+          type="button"
+          className="primary-button"
+          style={{ width: '100%' }}
+          onClick={handleUpgrade}
+          disabled={loading}
+          id="settings-upgrade-btn"
+        >
+          {loading ? 'Opening Stripe...' : '✦ Upgrade to Pro — $12/mo'}
+        </button>
+      ) : (
+        <>
+          <p style={{ color: 'var(--success)', fontWeight: '600', margin: '0 0 0.75rem' }}>
+            ✓ Pro Plan is Active
+          </p>
+          <button
+            type="button"
+            className="secondary-button"
+            style={{ width: '100%' }}
+            onClick={handleManageBilling}
+            disabled={loading}
+            id="settings-billing-portal-btn"
+          >
+            {loading ? 'Opening Stripe...' : 'Manage Billing & Invoices'}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
+const UPGRADE_BENEFITS = [
+  { icon: '📄', text: 'Unlimited Resumes (Starter limit: 1)' },
+  { icon: '⬇️', text: 'A4 PDF Downloads — recruiter-ready exports' },
+  { icon: '🎯', text: 'JD Analyzer — extract recruiter keywords instantly' },
+  { icon: '✍️', text: 'AI Bullet Rewriter & quantified achievements' },
+  { icon: '💌', text: 'Cover Letter Generator powered by Gemini AI' },
+];
+
+function UpgradeModal({ onClose, onUpgrade, isLoading }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-surface" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>CareerForge Pro</h3>
-          <button type="button" className="modal-close-button" onClick={onClose}>
+          <div>
+            <span className="eyebrow" style={{ marginBottom: '0.4rem', display: 'block' }}>Unlock Pro</span>
+            <h3>CareerForge Pro</h3>
+          </div>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Close modal">
             ✕
           </button>
         </div>
-        <p className="ai-helper">Unlock unlimited resume generation, PDF exports, cover letter writing, and professional AI-powered tools.</p>
+
+        <div className="modal-shimmer-line" />
+
+        <p className="ai-helper">Everything you need to go from draft to job-ready — in one focused platform.</p>
+
         <ul className="modal-benefits">
-          <li className="modal-benefit-item">
-            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> Unlimited Resumes (Starter limit: 1)
-          </li>
-          <li className="modal-benefit-item">
-            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> A4 PDF Downloads
-          </li>
-          <li className="modal-benefit-item">
-            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> AI Job Description keywords mapping
-          </li>
-          <li className="modal-benefit-item">
-            <span className="modal-benefit-icon" style={{ color: 'var(--success)', marginRight: '0.5rem' }}>✓</span> AI Bullet Rewriter & quantified suggestions
-          </li>
+          {UPGRADE_BENEFITS.map((benefit) => (
+            <li key={benefit.text} className="modal-benefit-item">
+              <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{benefit.icon}</span>
+              <span>{benefit.text}</span>
+            </li>
+          ))}
         </ul>
+
         <div className="modal-pricing">
           <strong>$12.00 / month</strong>
-          <span>Cancel anytime in one click.</span>
+          <span>Cancel anytime — no lock-in, no hidden fees.</span>
         </div>
+
         <div className="modal-actions">
-          <button type="button" className="primary-button" onClick={onUpgrade}>
-            Upgrade Now
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onUpgrade}
+            disabled={isLoading}
+            id="upgrade-modal-cta-btn"
+          >
+            {isLoading ? 'Opening Stripe...' : '✦ Upgrade Now — $12/mo'}
           </button>
           <button type="button" className="ghost-button" onClick={onClose}>
             Maybe Later

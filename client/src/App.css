@@ -127,7 +127,9 @@ label {
   transform: translateY(-1px);
 }
 
-.primary-button:disabled {
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
@@ -1121,3 +1123,184 @@ label {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* ─── Pro Plan Badge (Sidebar) ───────────────────────────────────────────── */
+.pro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: white;
+  background: linear-gradient(135deg, #2b7fff, #2dd4bf);
+  box-shadow:
+    0 0 0 1px rgba(45, 212, 191, 0.35),
+    0 4px 18px rgba(43, 127, 255, 0.42);
+  animation: proPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes proPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.35), 0 4px 18px rgba(43, 127, 255, 0.42); }
+  50%       { box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2),  0 6px 24px rgba(43, 127, 255, 0.55); }
+}
+
+.free-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(151, 182, 255, 0.14);
+}
+
+/* ─── Dashboard Upgrade CTA Card ─────────────────────────────────────────── */
+.upgrade-cta-card {
+  position: relative;
+  border-radius: 28px;
+  padding: 1.6rem;
+  background: linear-gradient(135deg, rgba(43, 127, 255, 0.18), rgba(45, 212, 191, 0.12));
+  border: 1px solid rgba(101, 184, 255, 0.28);
+  overflow: hidden;
+  display: grid;
+  gap: 1rem;
+}
+
+.upgrade-cta-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at top right, rgba(101, 184, 255, 0.18), transparent 65%);
+  pointer-events: none;
+}
+
+.upgrade-cta-card__title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.2rem;
+  background: linear-gradient(90deg, white, #93c5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.upgrade-cta-card__body {
+  margin: 0;
+  color: #93acd0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.upgrade-cta-card__features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.upgrade-cta-card__feature {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: #bfdbfe;
+  background: rgba(43, 127, 255, 0.14);
+  border: 1px solid rgba(101, 184, 255, 0.2);
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+}
+
+/* ─── Plan Status Badge (Settings) ──────────────────────────────────────── */
+.plan-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.plan-status-badge--active {
+  background: rgba(45, 212, 191, 0.14);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.plan-status-badge--inactive,
+.plan-status-badge--canceled,
+.plan-status-badge--unpaid {
+  background: rgba(251, 113, 133, 0.1);
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.24);
+}
+
+.plan-status-badge--past_due {
+  background: rgba(250, 204, 21, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+}
+
+.plan-status-badge--trialing {
+  background: rgba(167, 139, 250, 0.14);
+  color: #c4b5fd;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+}
+
+/* ─── Modal shimmer line ─────────────────────────────────────────────────── */
+.modal-shimmer-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(101, 184, 255, 0.6), rgba(45, 212, 191, 0.6), transparent);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  animation: shimmerSlide 2.4s ease-in-out infinite;
+}
+
+@keyframes shimmerSlide {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ─── Settings subscription card ────────────────────────────────────────── */
+.subscription-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.subscription-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(151, 182, 255, 0.1);
+  border-radius: 18px;
+}
+
+.subscription-info-item__label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.subscription-info-item__value {
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 500;
+  font-family: 'Space Grotesk', sans-serif;
+}
+

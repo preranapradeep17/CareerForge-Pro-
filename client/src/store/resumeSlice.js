@@ -27,8 +27,8 @@ const initialState = {
 };
 
 const computeAtsScore = (data) => {
-  const fields = [data.fullName, data.title, data.summary, data.skills];
-  const completedFields = fields.filter((value) => value.trim().length > 0).length;
+  const fields = [data?.fullName, data?.title, data?.summary, data?.skills];
+  const completedFields = fields.filter((value) => typeof value === 'string' && value.trim().length > 0).length;
   return Math.round((completedFields / fields.length) * 100);
 };
 

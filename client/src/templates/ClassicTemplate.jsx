@@ -3,8 +3,8 @@
  * Single-column, navy header, ruled section dividers.
  * Designed for ATS-friendly, traditional professional roles.
  */
-export default function ClassicTemplate({ resumeData, atsScore }) {
-  const skills = resumeData.skills
+export default function ClassicTemplate({ resumeData = {}, atsScore = 0 }) {
+  const skills = (resumeData?.skills || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);

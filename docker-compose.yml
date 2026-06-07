@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: careerforge-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - careerforge-network
+
+  server:
+    build: ./server
+    container_name: careerforge-server
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongo:27017/careerforge
+      - JWT_SECRET=supersecretjwtkeyplaceholder
+      - GEMINI_API_KEY=your_gemini_api_key
+      - STRIPE_SECRET_KEY=sk_test_placeholder
+      - STRIPE_WEBHOOK_SECRET=whsec_placeholder
+      - STRIPE_PRO_PRICE_ID=price_placeholder
+      - STRIPE_PRO_AMOUNT_CENTS=1200
+      - STRIPE_PRO_CURRENCY=usd
+      - STRIPE_PRO_INTERVAL=month
+      - CLIENT_URL=http://localhost
+    depends_on:
+      - mongo
+    networks:
+      - careerforge-network
+
+  client:
+    build: ./client
+    container_name: careerforge-client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - careerforge-network
+
+volumes:
+  mongo-data:
+
+networks:
+  careerforge-network:
+    driver: bridge

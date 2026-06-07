@@ -3,17 +3,17 @@
  * Two-column layout: narrow teal sidebar on the left,
  * main content area on the right. Bold and contemporary.
  */
-export default function ModernTemplate({ resumeData, atsScore }) {
-  const skills = resumeData.skills
+export default function ModernTemplate({ resumeData = {}, atsScore = 0 }) {
+  const skills = (resumeData?.skills || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const initials = resumeData.fullName
+  const initials = resumeData?.fullName
     ? resumeData.fullName
         .split(' ')
         .slice(0, 2)
-        .map((w) => w[0].toUpperCase())
+        .map((w) => w ? w[0].toUpperCase() : '')
         .join('')
     : 'YN';
 

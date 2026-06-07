@@ -44,6 +44,8 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         plan: user.plan,
+        planStatus: user.planStatus,
+        planCurrentPeriodEnd: user.planCurrentPeriodEnd,
         resumeCount: user.resumeCount,
       },
     });
@@ -79,6 +81,8 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         plan: user.plan,
+        planStatus: user.planStatus,
+        planCurrentPeriodEnd: user.planCurrentPeriodEnd,
         resumeCount: user.resumeCount,
       },
     });
