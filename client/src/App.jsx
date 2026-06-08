@@ -88,7 +88,9 @@ const aiPost = async (endpoint, body, token) => {
   });
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.message || 'AI request failed');
+    const error = new Error(data.message || 'AI request failed');
+    error.upgradeRequired = data.upgradeRequired;
+    throw error;
   }
   return data;
 };
@@ -250,7 +252,15 @@ function useCareerForgeApp() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to export PDF');
+        let errorMessage = 'Failed to export PDF';
+        try {
+          const data = await response.json();
+          if (data.upgradeRequired) {
+            setIsUpgradeModalOpen(true);
+          }
+          errorMessage = data.message || errorMessage;
+        } catch (_) {}
+        throw new Error(errorMessage);
       }
 
       const blob = await response.blob();
@@ -755,6 +765,9 @@ function useCareerForgeApp() {
 
         try {
           const data = await response.json();
+          if (data.upgradeRequired) {
+            setIsUpgradeModalOpen(true);
+          }
           errorMessage = data.message || errorMessage;
         } catch {
           errorMessage = 'Failed to export PDF';
@@ -906,6 +919,9 @@ function useCareerForgeApp() {
       dispatch(setJdResult(result));
       toast.success('Job description analyzed');
     } catch (error) {
+      if (error.upgradeRequired) {
+        setIsUpgradeModalOpen(true);
+      }
       dispatch(setAiError(error.message));
       toast.error(error.message);
     }
@@ -932,6 +948,9 @@ function useCareerForgeApp() {
       dispatch(setBulletResult(result));
       toast.success('Bullet rewritten');
     } catch (error) {
+      if (error.upgradeRequired) {
+        setIsUpgradeModalOpen(true);
+      }
       dispatch(setAiError(error.message));
       toast.error(error.message);
     }
@@ -1927,6 +1946,9 @@ function CoverLetterPage({ app }) {
 
       const data = await response.json();
       if (!response.ok) {
+        if (data.upgradeRequired) {
+          app.setIsUpgradeModalOpen(true);
+        }
         throw new Error(data.message || 'Failed to generate cover letter');
       }
 
