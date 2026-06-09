@@ -1304,3 +1304,29 @@ label {
   font-family: 'Space Grotesk', sans-serif;
 }
 
+/* ─── Large Modal Surface & Textarea ────────────────────────────────────────── */
+.modal-surface--large {
+  width: min(100%, 750px);
+}
+
+.modal-textarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(151, 182, 255, 0.14);
+  border-radius: 18px;
+  color: var(--text);
+  padding: 1.2rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.modal-textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 2px rgba(101, 184, 255, 0.15);
+}
+
+

@@ -1902,10 +1902,95 @@ function TemplatesPage({ app }) {
   );
 }
 
+function CoverLetterEditModal({ isOpen, onClose, initialContent, onSave }) {
+  const [text, setText] = useState(initialContent || '');
+
+  useEffect(() => {
+    setText(initialContent || '');
+  }, [initialContent]);
+
+  if (!isOpen) return null;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'cover_letter.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('Downloaded cover_letter.txt');
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-surface modal-surface--large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span className="eyebrow" style={{ marginBottom: '0.4rem', display: 'block' }}>Refine & Export</span>
+            <h3>Edit Cover Letter</h3>
+          </div>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Close modal">
+            ✕
+          </button>
+        </div>
+
+        <div className="modal-shimmer-line" />
+
+        <textarea
+          className="modal-textarea"
+          rows={16}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Refine your cover letter here..."
+        />
+
+        <div className="modal-actions" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => {
+              onSave(text);
+              onClose();
+            }}
+          >
+            Apply & Save
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleCopy}
+          >
+            📋 Copy
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleDownload}
+          >
+            ⬇️ Download .txt
+          </button>
+          <button type="button" className="ghost-button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CoverLetterPage({ app }) {
   const [letterJobDescription, setLetterJobDescription] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const handleGenerate = async () => {
     if (!letterJobDescription.trim()) {
@@ -1952,7 +2037,11 @@ function CoverLetterPage({ app }) {
         throw new Error(data.message || 'Failed to generate cover letter');
       }
 
-      setCoverLetter(data.coverLetter || '');
+      const generatedText = data.coverLetter || '';
+      setCoverLetter(generatedText);
+      if (generatedText) {
+        setIsEditModalOpen(true);
+      }
       toast.success('Cover letter generated', { id: toastId });
     } catch (error) {
       toast.error(error.message, { id: toastId });
@@ -2008,8 +2097,30 @@ function CoverLetterPage({ app }) {
             onChange={(event) => setCoverLetter(event.target.value)}
             placeholder="Your generated cover letter appears here."
           />
+          {coverLetter && (
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => setIsEditModalOpen(true)}
+                style={{ flex: 1 }}
+              >
+                ✏️ Open in Modal Editor
+              </button>
+            </div>
+          )}
         </article>
       </section>
+
+      <CoverLetterEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        initialContent={coverLetter}
+        onSave={(updatedText) => {
+          setCoverLetter(updatedText);
+          toast.success('Cover letter updated');
+        }}
+      />
     </div>
   );
 }
