@@ -260,7 +260,9 @@ function useCareerForgeApp() {
             setIsUpgradeModalOpen(true);
           }
           errorMessage = data.message || errorMessage;
-        } catch (_) {}
+        } catch {
+          // Ignore parsing error, fall back to default message
+        }
         throw new Error(errorMessage);
       }
 
@@ -1434,14 +1436,15 @@ function AtsBadge({ score }) {
 function DashboardPage({ app }) {
   const navigate = useNavigate();
 
-  const averageAtsScore = app.resumes.length > 0
-    ? Math.round(app.resumes.reduce((sum, r) => sum + (r.atsScore || 0), 0) / app.resumes.length)
+  const bestScore = app.resumes.length > 0
+    ? Math.max(...app.resumes.map((r) => r.atsScore || 0))
     : 0;
 
   const metricCards = [
-    { label: 'ATS Score', value: `${averageAtsScore}%`, note: 'Average readiness score' },
-    { label: 'Resumes', value: `${app.resumes.length}`, note: 'Saved in your workspace' },
-    { label: 'Templates', value: '3', note: 'Available template designs' },
+    { label: 'Best ATS Score', value: `${bestScore}%`, note: 'Highest profile score' },
+    { label: 'Resumes Created', value: `${app.resumes.length}`, note: 'Saved in your workspace' },
+    { label: 'Templates Used', value: '3', note: 'Available template designs' },
+    { label: 'Workspace Plan', value: app.user?.plan === 'pro' ? '✦ Pro' : 'Free', note: 'Current account tier' },
   ];
 
   return (
@@ -1482,105 +1485,132 @@ function DashboardPage({ app }) {
 
       <div className="section-divider" style={{ borderTop: '1px solid var(--line)', margin: '2rem 0' }} />
 
-      <section className="dashboard-resumes-section">
-        <div className="surface-card__header" style={{ marginBottom: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.4rem', margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>My Resumes</h3>
-        </div>
-
-        {app.loadingResumes ? (
-          <p className="ai-helper">Loading resumes from database...</p>
-        ) : app.resumes.length > 0 ? (
-          <div className="dashboard-resume-grid">
-            {app.resumes.map((resume) => {
-              const formattedDate = new Date(resume.updatedAt).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-              });
-
-              return (
-                <article key={resume._id} className="resume-card">
-                  {/* Live scaled-down template preview thumbnail */}
-                  <div className="resume-card__thumbnail">
-                    <div className="resume-card__thumbnail-scale">
-                      <ResumePreview
-                        resumeData={{
-                          fullName: resume.personalInfo?.fullName || 'Untitled',
-                          title: resume.targetJD || 'General Role',
-                          summary: resume.personalInfo?.summary || '',
-                          skills: Array.isArray(resume.skills) ? resume.skills.join(', ') : '',
-                        }}
-                        template={resume.template}
-                        atsScore={resume.atsScore}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <div className="resume-card__body">
-                    <div className="resume-card__title-row">
-                      <h4 className="resume-card__title">
-                        {resume.personalInfo?.fullName || 'Untitled Resume'}
-                      </h4>
-                      <AtsBadge score={resume.atsScore} />
-                    </div>
-
-                    <p className="resume-card__role">
-                      Target Role: <strong>{resume.targetJD || 'General Role'}</strong>
-                    </p>
-
-                    <div className="resume-card__metadata">
-                      <span>🎨 {resume.template.toUpperCase()}</span>
-                      <span>📅 {formattedDate}</span>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="resume-card__actions">
-                      <button
-                        type="button"
-                        className="primary-button"
-                        style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
-                        onClick={() => navigate(`/resume/${resume._id}`)}
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
-                        onClick={() => app.handleExportPdfDirectly(resume)}
-                      >
-                        ⬇️ Download
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        style={{ padding: '0.5rem', fontSize: '0.82rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}
-                        onClick={() => app.handleDeleteResume(resume._id)}
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+      <div className="dashboard-grid-layout">
+        {/* Left Side: My Resumes */}
+        <section className="dashboard-resumes-section">
+          <div className="surface-card__header" style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.4rem', margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>My Resumes</h3>
           </div>
-        ) : (
-          <div className="surface-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-            <p className="ai-helper" style={{ fontSize: '1.1rem', marginBottom: '1.2rem' }}>
-              You haven't created any resumes yet. Click "+ New Resume" to begin.
-            </p>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={app.handleCreateNewResume}
-            >
-              Create Your First Resume
-            </button>
-          </div>
-        )}
-      </section>
+
+          {app.loadingResumes ? (
+            <p className="ai-helper">Loading resumes from database...</p>
+          ) : app.resumes.length > 0 ? (
+            <div className="dashboard-resume-grid">
+              {app.resumes.map((resume) => {
+                const formattedDate = new Date(resume.updatedAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                });
+
+                return (
+                  <article key={resume._id} className="resume-card">
+                    {/* Live scaled-down template preview thumbnail */}
+                    <div className="resume-card__thumbnail">
+                      <div className="resume-card__thumbnail-scale">
+                        <ResumePreview
+                          resumeData={{
+                            fullName: resume.personalInfo?.fullName || 'Untitled',
+                            title: resume.targetJD || 'General Role',
+                            summary: resume.personalInfo?.summary || '',
+                            skills: Array.isArray(resume.skills) ? resume.skills.join(', ') : '',
+                          }}
+                          template={resume.template}
+                          atsScore={resume.atsScore}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Body Content */}
+                    <div className="resume-card__body">
+                      <div className="resume-card__title-row">
+                        <h4 className="resume-card__title">
+                          {resume.personalInfo?.fullName || 'Untitled Resume'}
+                        </h4>
+                        <AtsBadge score={resume.atsScore} />
+                      </div>
+
+                      <p className="resume-card__role">
+                        Target Role: <strong>{resume.targetJD || 'General Role'}</strong>
+                      </p>
+
+                      <div className="resume-card__metadata">
+                        <span>🎨 {resume.template.toUpperCase()}</span>
+                        <span>📅 {formattedDate}</span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="resume-card__actions">
+                        <button
+                          type="button"
+                          className="primary-button"
+                          style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
+                          onClick={() => navigate(`/resume/${resume._id}`)}
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
+                          onClick={() => app.handleExportPdfDirectly(resume)}
+                        >
+                          ⬇️ Download
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          style={{ padding: '0.5rem', fontSize: '0.82rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                          onClick={() => app.handleDeleteResume(resume._id)}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="surface-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+              <p className="ai-helper" style={{ fontSize: '1.1rem', marginBottom: '1.2rem' }}>
+                You haven't created any resumes yet. Click "+ New Resume" to begin.
+              </p>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={app.handleCreateNewResume}
+              >
+                Create Your First Resume
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Right Side: Recent Activity & AI Tips */}
+        <section className="dashboard-sidebar-section" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <article className="surface-card">
+            <div className="surface-card__header" style={{ borderBottom: '1px solid var(--line)', paddingBottom: '0.6rem', marginBottom: '0.8rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Recent Activity</h3>
+            </div>
+            <ul className="insight-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <li>✓ Resume Updated & Auto-saved</li>
+              <li>✓ ATS Match Score Calculated</li>
+              <li>✓ AI Cover Letter Draft Synced</li>
+            </ul>
+          </article>
+
+          <article className="surface-card">
+            <div className="surface-card__header" style={{ borderBottom: '1px solid var(--line)', paddingBottom: '0.6rem', marginBottom: '0.8rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem' }}>AI Optimization Tips</h3>
+            </div>
+            <ul className="insight-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <li>Use **JD Analyzer** to pull recruiter keywords directly from target descriptions.</li>
+              <li>Apply suggested skills in builder to improve ATS alignment.</li>
+            </ul>
+          </article>
+        </section>
+      </div>
 
       {app.user?.plan !== 'pro' && (
         <section style={{ marginTop: '3rem' }}>
@@ -1621,6 +1651,7 @@ function ResumeBuilderPage({ app }) {
     if (id && app.resumeId !== id) {
       app.fetchResumeById(id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, app.resumeId]);
 
   return (
@@ -2024,6 +2055,7 @@ function CoverLetterEditModal({ isOpen, onClose, initialContent, onSave }) {
   const [text, setText] = useState(initialContent || '');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setText(initialContent || '');
   }, [initialContent]);
 

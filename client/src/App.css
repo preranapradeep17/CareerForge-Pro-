@@ -1423,5 +1423,18 @@ label {
   margin-top: 0.5rem;
 }
 
+.dashboard-grid-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .dashboard-grid-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 
