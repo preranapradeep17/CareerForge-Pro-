@@ -23,7 +23,7 @@ import {
 } from './store/resumeSlice';
 import { scoreResumeAgainstJD } from './utils/atsScorer';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 const AUTO_SAVE_DELAY_MS = 1500;
 const TEMPLATE_OPTIONS = ['classic', 'modern', 'minimal'];
 
