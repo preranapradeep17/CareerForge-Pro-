@@ -103,6 +103,26 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid resume id' });
+    }
+
+    const resume = await Resume.findOne({ _id: id, user: req.user.id });
+
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    return res.status(200).json({ resume });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to fetch resume', error: error.message });
+  }
+});
+
 router.post('/export/pdf', protect, requirePro, async (req, res) => {
   try {
     const validationError = validateResumePayload(req.body);

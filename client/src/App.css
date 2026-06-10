@@ -1329,4 +1329,99 @@ label {
   box-shadow: 0 0 0 2px rgba(101, 184, 255, 0.15);
 }
 
+/* ─── Dashboard Command Center Resume Grid & Cards ───────────────────────── */
+.dashboard-resume-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  margin-top: 1rem;
+}
+
+.resume-card {
+  border-radius: 28px;
+  background: rgba(14, 24, 44, 0.72);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+  display: flex;
+  flex-direction: column;
+}
+
+.resume-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 60px rgba(3, 8, 20, 0.4);
+  border-color: rgba(101, 184, 255, 0.3);
+}
+
+.resume-card__thumbnail {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  background: #f8fafc;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: default;
+}
+
+.resume-card__thumbnail-scale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 260%;
+  transform: scale(0.385);
+  transform-origin: top left;
+  pointer-events: none;
+  user-select: none;
+}
+
+.resume-card__body {
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-grow: 1;
+}
+
+.resume-card__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.resume-card__title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+}
+
+.resume-card__role {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resume-card__metadata {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: var(--muted);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 0.65rem;
+}
+
+.resume-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+
 
