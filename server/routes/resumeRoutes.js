@@ -54,6 +54,60 @@ const validateResumePayload = (payload) => {
   return null;
 };
 
+const saveAutomaticVersion = async (resume) => {
+  try {
+    const latestVersion = await ResumeVersion.findOne({ resume: resume._id }).sort({ createdAt: -1 });
+    const normalize = (val) => JSON.stringify(val || '');
+
+    if (latestVersion) {
+      const isDifferent =
+        normalize(latestVersion.personalInfo) !== normalize(resume.personalInfo) ||
+        normalize(latestVersion.skills) !== normalize(resume.skills) ||
+        latestVersion.template !== resume.template ||
+        latestVersion.targetJD !== resume.targetJD;
+
+      if (!isDifferent) {
+        return;
+      }
+
+      const isAutoSaved = latestVersion.versionName.startsWith('Auto-saved');
+      const timeDiffMs = Date.now() - new Date(latestVersion.createdAt).getTime();
+
+      if (isAutoSaved && timeDiffMs < 2 * 60 * 1000) {
+        latestVersion.personalInfo = resume.personalInfo;
+        latestVersion.experience = resume.experience;
+        latestVersion.education = resume.education;
+        latestVersion.skills = resume.skills;
+        latestVersion.projects = resume.projects;
+        latestVersion.atsScore = resume.atsScore;
+        latestVersion.template = resume.template;
+        latestVersion.targetJD = resume.targetJD;
+
+        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        latestVersion.versionName = `Auto-saved Version (${timeString})`;
+        await latestVersion.save();
+        return;
+      }
+    }
+
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    await ResumeVersion.create({
+      resume: resume._id,
+      personalInfo: resume.personalInfo,
+      experience: resume.experience,
+      education: resume.education,
+      skills: resume.skills,
+      projects: resume.projects,
+      atsScore: resume.atsScore,
+      template: resume.template,
+      targetJD: resume.targetJD,
+      versionName: `Auto-saved Version (${timeString})`,
+    });
+  } catch (err) {
+    console.error('[Version History] Error saving automatic version snapshot:', err.message);
+  }
+};
+
 router.post('/', protect, async (req, res) => {
   try {
     const validationError = validateResumePayload(req.body);
@@ -87,6 +141,8 @@ router.post('/', protect, async (req, res) => {
     });
 
     await User.findByIdAndUpdate(req.user.id, { $inc: { resumeCount: 1 } });
+
+    await saveAutomaticVersion(resume);
 
     return res.status(201).json({ resume });
   } catch (error) {
@@ -180,6 +236,8 @@ router.put('/:id', protect, async (req, res) => {
     if (!updatedResume) {
       return res.status(404).json({ message: 'Resume not found' });
     }
+
+    await saveAutomaticVersion(updatedResume);
 
     return res.status(200).json({ resume: updatedResume });
   } catch (error) {
