@@ -736,6 +736,31 @@ function useCareerForgeApp() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to initialize demo mode');
+      }
+
+      localStorage.setItem(TOKEN_KEY, data.token);
+      dispatch(setCredentials({ token: data.token, user: data.user }));
+      toast.success('Welcome! Logged in as Demo Recruiter (Pro Tier Enabled)');
+      navigate('/dashboard');
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResumeChange = (event) => {
     const { name, value } = event.target;
     dispatch(updateResumeField({ field: name, value }));
@@ -1047,6 +1072,7 @@ function useCareerForgeApp() {
     handleLoginChange,
     handleRegister,
     handleLogin,
+    handleDemoLogin,
     handleLogout,
     handleResumeChange,
     handleExportPdf,
@@ -1303,6 +1329,17 @@ function LoginPage({ app }) {
         </button>
         <span className="auth-muted">Forgot Password?</span>
       </form>
+      <div className="auth-divider">
+        <span>or</span>
+      </div>
+      <button
+        type="button"
+        onClick={app.handleDemoLogin}
+        className="demo-button"
+        disabled={app.loading}
+      >
+        ⚡ Try Demo Mode (Instant Access)
+      </button>
     </AuthShell>
   );
 }
