@@ -778,7 +778,7 @@ function useCareerForgeApp() {
     }
 
     setIsExportingPdf(true);
-
+    const toastId = toast.loading('Generating and downloading PDF...');
     try {
       const response = await fetch(`${API_BASE}/resumes/export/pdf`, {
         method: 'POST',
@@ -820,9 +820,9 @@ function useCareerForgeApp() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(downloadUrl);
-      toast.success('PDF exported');
+      toast.success('PDF exported successfully!', { id: toastId });
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message, { id: toastId });
     } finally {
       setIsExportingPdf(false);
     }
@@ -843,6 +843,7 @@ function useCareerForgeApp() {
     const formData = new FormData();
     formData.append('resume', file);
 
+    const toastId = toast.loading('Uploading and parsing resume PDF with Gemini...');
     setIsParsingResume(true);
     try {
       const response = await fetch(`${API_BASE}/ai/parse-resume`, {
@@ -863,9 +864,9 @@ function useCareerForgeApp() {
         field: 'skills',
         value: Array.isArray(data.skills) ? data.skills.join(', ') : '',
       }));
-      toast.success('Resume parsed successfully');
+      toast.success('Resume parsed successfully', { id: toastId });
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message, { id: toastId });
     } finally {
       setIsParsingResume(false);
       event.target.value = '';
@@ -1531,7 +1532,18 @@ function DashboardPage({ app }) {
           </div>
 
           {app.loadingResumes ? (
-            <p className="ai-helper">Loading resumes from database...</p>
+            <div className="dashboard-resume-grid">
+              {[1, 2, 3].map((n) => (
+                <article key={n} className="skeleton-card">
+                  <div className="skeleton-thumbnail" />
+                  <div className="skeleton-body">
+                    <div className="skeleton-title" style={{ width: '75%', marginBottom: '0.5rem' }} />
+                    <div className="skeleton-text" style={{ width: '90%' }} />
+                    <div className="skeleton-text skeleton-text--short" style={{ width: '50%' }} />
+                  </div>
+                </article>
+              ))}
+            </div>
           ) : app.resumes.length > 0 ? (
             <div className="dashboard-resume-grid">
               {app.resumes.map((resume) => {
@@ -1867,7 +1879,14 @@ function AIAssistantPage({ app }) {
             <button type="button" className="primary-button" onClick={app.handleImproveSummary} disabled={app.ai.loading}>
               {app.ai.loading ? 'Improving...' : 'Improve Summary'}
             </button>
-            {app.ai.summaryResult && (
+            {app.ai.loading ? (
+              <div className="skeleton-card" style={{ marginTop: '1.5rem' }}>
+                <div className="skeleton-title" style={{ width: '40%', marginBottom: '0.5rem' }} />
+                <div className="skeleton-text" style={{ width: '95%' }} />
+                <div className="skeleton-text" style={{ width: '90%' }} />
+                <div className="skeleton-text skeleton-text--short" style={{ width: '60%' }} />
+              </div>
+            ) : app.ai.summaryResult && (
               <div className="ai-result-card">
                 <div className="surface-card__header">
                   <h3>Improved Summary</h3>
@@ -1900,7 +1919,13 @@ function AIAssistantPage({ app }) {
             <button type="button" className="primary-button" onClick={app.handleAtsAnalysis}>
               Run ATS Analysis
             </button>
-            {app.ai.atsResult && (
+            {app.ai.loading ? (
+              <div className="skeleton-card" style={{ marginTop: '1.5rem' }}>
+                <div className="skeleton-title" style={{ width: '30%', marginBottom: '0.5rem' }} />
+                <div className="skeleton-text" style={{ width: '90%' }} />
+                <div className="skeleton-text skeleton-text--short" style={{ width: '45%' }} />
+              </div>
+            ) : app.ai.atsResult && (
               <div className="ai-result-card">
                 <div className="metric-grid metric-grid--compact">
                   <article className="metric-surface">
@@ -1935,7 +1960,13 @@ function AIAssistantPage({ app }) {
             <button type="button" className="primary-button" onClick={app.handleSuggestSkills} disabled={app.ai.loading}>
               {app.ai.loading ? 'Thinking...' : 'Suggest Skills'}
             </button>
-            {app.ai.skillsResult && (
+            {app.ai.loading ? (
+              <div className="skeleton-card" style={{ marginTop: '1.5rem' }}>
+                <div className="skeleton-title" style={{ width: '35%', marginBottom: '0.5rem' }} />
+                <div className="skeleton-text" style={{ width: '85%' }} />
+                <div className="skeleton-text" style={{ width: '70%' }} />
+              </div>
+            ) : app.ai.skillsResult && (
               <div className="ai-result-card">
                 {app.ai.skillsResult.reason && <p className="ai-helper">{app.ai.skillsResult.reason}</p>}
                 <div className="skill-suggestions">
@@ -1965,7 +1996,13 @@ function AIAssistantPage({ app }) {
             <button type="button" className="primary-button" onClick={app.handleAnalyzeJD} disabled={app.ai.loading}>
               {app.ai.loading ? 'Analyzing...' : 'Analyze Job Description'}
             </button>
-            {app.ai.jdResult && (
+            {app.ai.loading ? (
+              <div className="skeleton-card" style={{ marginTop: '1.5rem' }}>
+                <div className="skeleton-title" style={{ width: '45%', marginBottom: '0.5rem' }} />
+                <div className="skeleton-text" style={{ width: '90%' }} />
+                <div className="skeleton-text skeleton-text--short" style={{ width: '50%' }} />
+              </div>
+            ) : app.ai.jdResult && (
               <div className="ai-result-card">
                 <ChipRow title="Hard Skills" items={app.ai.jdResult.hardSkills} className="chip chip--hard" />
                 <ChipRow title="Soft Skills" items={app.ai.jdResult.softSkills} className="chip chip--soft" />
@@ -2002,7 +2039,13 @@ function AIAssistantPage({ app }) {
             <button type="button" className="primary-button" onClick={app.handleRewriteBullet} disabled={app.ai.loading}>
               {app.ai.loading ? 'Rewriting...' : 'Rewrite Bullet'}
             </button>
-            {app.ai.bulletResult && (
+            {app.ai.loading ? (
+              <div className="skeleton-card" style={{ marginTop: '1.5rem' }}>
+                <div className="skeleton-title" style={{ width: '40%', marginBottom: '0.5rem' }} />
+                <div className="skeleton-text" style={{ width: '95%' }} />
+                <div className="skeleton-text" style={{ width: '80%' }} />
+              </div>
+            ) : app.ai.bulletResult && (
               <div className="ai-result-card">
                 <p className="ai-improved-text">{app.ai.bulletResult.rewrittenBullet}</p>
                 {app.ai.bulletResult.keywordsUsed?.length > 0 && (
@@ -2278,13 +2321,24 @@ function CoverLetterPage({ app }) {
             <h3>Editable Cover Letter</h3>
             <span className="status-pill status-pill--accent">Ready to refine</span>
           </div>
-          <textarea
-            className="cover-letter-output"
-            rows={18}
-            value={coverLetter}
-            onChange={(event) => setCoverLetter(event.target.value)}
-            placeholder="Your generated cover letter appears here."
-          />
+          {isGenerating ? (
+            <div className="skeleton-card" style={{ height: '360px', justifyContent: 'center' }}>
+              <div className="skeleton-title" style={{ width: '45%', marginBottom: '0.8rem' }} />
+              <div className="skeleton-text" style={{ width: '90%' }} />
+              <div className="skeleton-text" style={{ width: '85%' }} />
+              <div className="skeleton-text" style={{ width: '95%' }} />
+              <div className="skeleton-text skeleton-text--short" style={{ width: '60%' }} />
+              <div className="skeleton-text" style={{ width: '75%' }} />
+            </div>
+          ) : (
+            <textarea
+              className="cover-letter-output"
+              rows={18}
+              value={coverLetter}
+              onChange={(event) => setCoverLetter(event.target.value)}
+              placeholder="Your generated cover letter appears here."
+            />
+          )}
           {coverLetter && (
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1rem' }}>
               <button
