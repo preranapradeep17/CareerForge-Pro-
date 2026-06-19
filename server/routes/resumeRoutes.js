@@ -51,6 +51,10 @@ const validateResumePayload = (payload) => {
     return 'targetJD must be a string';
   }
 
+  if (payload.name !== undefined && typeof payload.name !== 'string') {
+    return 'name must be a string';
+  }
+
   return null;
 };
 
@@ -61,6 +65,7 @@ const saveAutomaticVersion = async (resume) => {
 
     if (latestVersion) {
       const isDifferent =
+        latestVersion.name !== resume.name ||
         normalize(latestVersion.personalInfo) !== normalize(resume.personalInfo) ||
         normalize(latestVersion.skills) !== normalize(resume.skills) ||
         latestVersion.template !== resume.template ||
@@ -74,6 +79,7 @@ const saveAutomaticVersion = async (resume) => {
       const timeDiffMs = Date.now() - new Date(latestVersion.createdAt).getTime();
 
       if (isAutoSaved && timeDiffMs < 2 * 60 * 1000) {
+        latestVersion.name = resume.name;
         latestVersion.personalInfo = resume.personalInfo;
         latestVersion.experience = resume.experience;
         latestVersion.education = resume.education;
@@ -93,6 +99,7 @@ const saveAutomaticVersion = async (resume) => {
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     await ResumeVersion.create({
       resume: resume._id,
+      name: resume.name,
       personalInfo: resume.personalInfo,
       experience: resume.experience,
       education: resume.education,
@@ -130,6 +137,7 @@ router.post('/', protect, async (req, res) => {
 
     const resume = await Resume.create({
       user: req.user.id,
+      name: req.body.name || 'Untitled Resume',
       personalInfo: req.body.personalInfo,
       experience: req.body.experience || [],
       education: req.body.education || [],
@@ -221,6 +229,7 @@ router.put('/:id', protect, async (req, res) => {
     const updatedResume = await Resume.findOneAndUpdate(
       { _id: id, user: req.user.id },
       {
+        name: req.body.name || 'Untitled Resume',
         personalInfo: req.body.personalInfo,
         experience: req.body.experience || [],
         education: req.body.education || [],
@@ -351,6 +360,7 @@ router.post('/:id/versions/:versionId/restore', protect, async (req, res) => {
     }
 
     // Restore fields
+    resume.name = version.name || 'Untitled Resume';
     resume.personalInfo = version.personalInfo;
     resume.experience = version.experience;
     resume.education = version.education;

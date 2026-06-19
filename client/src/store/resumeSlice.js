@@ -1,5 +1,31 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+const emptyExperience = () => ({
+  company: '',
+  role: '',
+  location: '',
+  startDate: '',
+  endDate: '',
+  currentlyWorking: false,
+  description: '',
+});
+
+const emptyEducation = () => ({
+  institution: '',
+  degree: '',
+  fieldOfStudy: '',
+  startDate: '',
+  endDate: '',
+  grade: '',
+});
+
+const emptyProject = () => ({
+  title: '',
+  description: '',
+  technologies: '',
+  link: '',
+});
+
 const initialState = {
   resumeData: {
     fullName: '',
@@ -7,21 +33,19 @@ const initialState = {
     summary: '',
     skills: '',
   },
+  experience: [],
+  education: [],
+  projects: [],
   atsScore: 0,
   template: 'classic',
   // ─── AI State ─────────────────────────────────────────────────────────────
   ai: {
     loading: false,
     error: '',
-    // improve-summary result
     summaryResult: null,   // { improvedSummary, tips[] }
-    // ats-analysis result
     atsResult: null,       // { atsScore, missingKeywords[], suggestions[], overallFeedback }
-    // suggest-skills result
     skillsResult: null,    // { suggestedSkills[{ skill, why }], reason }
-    // jd analysis result
     jdResult: null,        // { hardSkills[], softSkills[], actionVerbs[], domain[], seniorityLevel[] }
-    // bullet rewrite result
     bulletResult: null,    // { rewrittenBullet, keywordsUsed[], improvementNotes[] }
   },
 };
@@ -45,6 +69,57 @@ const resumeSlice = createSlice({
       state.template = action.payload;
     },
     resetResume: () => initialState,
+
+    // ─── Experience Actions ────────────────────────────────────────────────
+    addExperience: (state) => {
+      state.experience.push(emptyExperience());
+    },
+    updateExperience: (state, action) => {
+      const { index, field, value } = action.payload;
+      if (state.experience[index] !== undefined) {
+        state.experience[index][field] = value;
+      }
+    },
+    removeExperience: (state, action) => {
+      state.experience.splice(action.payload, 1);
+    },
+    setExperience: (state, action) => {
+      state.experience = action.payload;
+    },
+
+    // ─── Education Actions ─────────────────────────────────────────────────
+    addEducation: (state) => {
+      state.education.push(emptyEducation());
+    },
+    updateEducation: (state, action) => {
+      const { index, field, value } = action.payload;
+      if (state.education[index] !== undefined) {
+        state.education[index][field] = value;
+      }
+    },
+    removeEducation: (state, action) => {
+      state.education.splice(action.payload, 1);
+    },
+    setEducation: (state, action) => {
+      state.education = action.payload;
+    },
+
+    // ─── Projects Actions ──────────────────────────────────────────────────
+    addProject: (state) => {
+      state.projects.push(emptyProject());
+    },
+    updateProject: (state, action) => {
+      const { index, field, value } = action.payload;
+      if (state.projects[index] !== undefined) {
+        state.projects[index][field] = value;
+      }
+    },
+    removeProject: (state, action) => {
+      state.projects.splice(action.payload, 1);
+    },
+    setProjects: (state, action) => {
+      state.projects = action.payload;
+    },
 
     // ─── AI Actions ──────────────────────────────────────────────────────────
     setAiLoading: (state, action) => {
@@ -85,6 +160,18 @@ export const {
   updateResumeField,
   setTemplate,
   resetResume,
+  addExperience,
+  updateExperience,
+  removeExperience,
+  setExperience,
+  addEducation,
+  updateEducation,
+  removeEducation,
+  setEducation,
+  addProject,
+  updateProject,
+  removeProject,
+  setProjects,
   setAiLoading,
   setAiError,
   setSummaryResult,

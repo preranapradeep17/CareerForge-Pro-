@@ -67,33 +67,89 @@ export default function MinimalTemplate({ resumeData = {}, atsScore = 0 }) {
         {/* Experience */}
         <section style={styles.section}>
           <p style={styles.sectionLabel}>Experience</p>
-          <div style={styles.entry}>
-            <div style={styles.entryHeader}>
-              <div>
-                <p style={styles.entryRole}>Senior Software Engineer</p>
-                <p style={styles.entryCompany}>TechCorp Inc., San Francisco</p>
+          {resumeData.experience && resumeData.experience.length > 0 ? (
+            resumeData.experience.map((exp, index) => (
+              <div key={index} style={{ ...styles.entry, marginTop: index > 0 ? '1rem' : '0' }}>
+                <div style={styles.entryHeader}>
+                  <div>
+                    <p style={styles.entryRole}>{exp.role || 'Role Title'}</p>
+                    <p style={styles.entryCompany}>{exp.company || 'Company'}{exp.location ? `, ${exp.location}` : ''}</p>
+                  </div>
+                  <p style={styles.entryDate}>
+                    {exp.startDate || 'Start Date'} – {exp.currentlyWorking ? 'Present' : (exp.endDate || 'End Date')}
+                  </p>
+                </div>
+                {exp.description && (
+                  <p style={{ ...styles.bodyText, marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                    {exp.description}
+                  </p>
+                )}
               </div>
-              <p style={styles.entryDate}>Jan 2022 – Present</p>
-            </div>
-            <ul style={styles.entryBullets}>
-              <li>Reduced system latency by 40% through microservice decomposition.</li>
-              <li>Mentored 4 junior engineers, improving team velocity consistently.</li>
-              <li>Coordinated 3 major product launches with zero critical incidents.</li>
-            </ul>
-          </div>
+            ))
+          ) : (
+            <p style={styles.emptyNote}>Add professional experience in the editor.</p>
+          )}
         </section>
 
         {/* Education */}
-        <section style={{ ...styles.section, borderBottom: 'none' }}>
+        <section style={styles.section}>
           <p style={styles.sectionLabel}>Education</p>
-          <div style={styles.entryHeader}>
-            <div>
-              <p style={styles.entryRole}>B.Sc. Computer Science</p>
-              <p style={styles.entryCompany}>University of Excellence</p>
-            </div>
-            <p style={styles.entryDate}>2018 – 2022</p>
-          </div>
+          {resumeData.education && resumeData.education.length > 0 ? (
+            resumeData.education.map((edu, index) => (
+              <div key={index} style={{ ...styles.entry, marginTop: index > 0 ? '0.75rem' : '0' }}>
+                <div style={styles.entryHeader}>
+                  <div>
+                    <p style={styles.entryRole}>
+                      {edu.degree || 'Degree'}{edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''}
+                    </p>
+                    <p style={styles.entryCompany}>
+                      {edu.institution || 'Institution'}{edu.grade ? ` · GPA: ${edu.grade}` : ''}
+                    </p>
+                  </div>
+                  <p style={styles.entryDate}>
+                    {edu.startDate || 'Start Date'}{edu.endDate ? ` – ${edu.endDate}` : ''}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p style={styles.emptyNote}>Add education history in the editor.</p>
+          )}
         </section>
+
+        {/* Projects */}
+        {resumeData.projects && resumeData.projects.length > 0 ? (
+          <section style={{ ...styles.section, borderBottom: 'none' }}>
+            <p style={styles.sectionLabel}>Projects</p>
+            {resumeData.projects.map((proj, index) => (
+              <div key={index} style={{ ...styles.entry, marginTop: index > 0 ? '1rem' : '0' }}>
+                <div style={styles.entryHeader}>
+                  <div>
+                    <p style={styles.entryRole}>{proj.title || 'Project Title'}</p>
+                    {proj.technologies && (
+                      <p style={styles.entryCompany}><strong>Technologies:</strong> {proj.technologies}</p>
+                    )}
+                  </div>
+                  {proj.link && (
+                    <a
+                      href={proj.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '0.76rem', color: '#18181b', textDecoration: 'underline' }}
+                    >
+                      Link
+                    </a>
+                  )}
+                </div>
+                {proj.description && (
+                  <p style={{ ...styles.bodyText, marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                    {proj.description}
+                  </p>
+                )}
+              </div>
+            ))}
+          </section>
+        ) : null}
       </div>
 
       {/* ── Footer ── */}

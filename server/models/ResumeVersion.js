@@ -54,6 +54,11 @@ const resumeVersionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    name: {
+      type: String,
+      trim: true,
+      default: 'Untitled Resume',
+    },
     personalInfo: {
       type: personalInfoVersionSchema,
       required: true,

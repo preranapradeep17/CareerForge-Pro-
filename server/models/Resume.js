@@ -54,6 +54,11 @@ const resumeSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    name: {
+      type: String,
+      trim: true,
+      default: 'Untitled Resume',
+    },
     personalInfo: {
       type: personalInfoSchema,
       required: true,

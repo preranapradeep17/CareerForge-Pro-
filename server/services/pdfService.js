@@ -19,6 +19,9 @@ const normalizeResume = (resume = {}) => {
     skills: Array.isArray(resume.skills) ? resume.skills.filter(Boolean) : [],
     template: resume.template || 'classic',
     atsScore: Number.isFinite(resume.atsScore) ? resume.atsScore : 0,
+    experience: Array.isArray(resume.experience) ? resume.experience : [],
+    education: Array.isArray(resume.education) ? resume.education : [],
+    projects: Array.isArray(resume.projects) ? resume.projects : [],
   };
 };
 
@@ -36,6 +39,60 @@ const buildSkillMarkup = (skills, template) => {
       ${skills.map((skill) => `<span class="skill-chip">${escapeHtml(skill)}</span>`).join('')}
     </div>
   `;
+};
+
+const buildExperienceMarkup = (experience) => {
+  if (!experience || experience.length === 0) {
+    return '<p class="empty-state">No professional experience added yet.</p>';
+  }
+  return experience.map(exp => `
+    <div class="timeline-item">
+      <div class="timeline-header">
+        <span class="timeline-role">${escapeHtml(exp.role || 'Role')}</span>
+        <span class="timeline-date">${escapeHtml(exp.startDate || '')} – ${escapeHtml(exp.currentlyWorking ? 'Present' : (exp.endDate || ''))}</span>
+      </div>
+      <div class="timeline-meta">${escapeHtml(exp.company || '')}${exp.location ? `, ${escapeHtml(exp.location)}` : ''}</div>
+      ${exp.description ? `<p class="timeline-desc">${escapeHtml(exp.description).replace(/\n/g, '<br/>')}</p>` : ''}
+    </div>
+  `).join('');
+};
+
+const buildEducationMarkup = (education) => {
+  if (!education || education.length === 0) {
+    return '<p class="empty-state">No education history added yet.</p>';
+  }
+  return education.map(edu => `
+    <div class="timeline-item">
+      <div class="timeline-header">
+        <span class="timeline-role">${escapeHtml(edu.degree || 'Degree')}${edu.fieldOfStudy ? ` in ${escapeHtml(edu.fieldOfStudy)}` : ''}</span>
+        <span class="timeline-date">${escapeHtml(edu.startDate || '')} – ${escapeHtml(edu.endDate || '')}</span>
+      </div>
+      <div class="timeline-meta">${escapeHtml(edu.institution || '')}${edu.grade ? ` · GPA: ${escapeHtml(edu.grade)}` : ''}</div>
+    </div>
+  `).join('');
+};
+
+const buildProjectsMarkup = (projects) => {
+  if (!projects || projects.length === 0) {
+    return '';
+  }
+  return projects.map(proj => {
+    const tech = Array.isArray(proj.technologies)
+      ? proj.technologies.filter(Boolean)
+      : typeof proj.technologies === 'string'
+      ? proj.technologies.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
+    return `
+      <div class="timeline-item">
+        <div class="timeline-header">
+          <span class="timeline-role">${escapeHtml(proj.title || 'Project')}</span>
+          ${proj.link ? `<span class="timeline-date"><a href="${escapeHtml(proj.link)}" target="_blank" style="color: #2563eb; text-decoration: underline;">Link</a></span>` : ''}
+        </div>
+        ${proj.description ? `<p class="timeline-desc">${escapeHtml(proj.description).replace(/\n/g, '<br/>')}</p>` : ''}
+        ${tech.length > 0 ? `<div class="timeline-tech"><strong>Technologies:</strong> ${tech.map(escapeHtml).join(', ')}</div>` : ''}
+      </div>
+    `;
+  }).join('');
 };
 
 const buildTemplateClass = (template) => {
@@ -223,6 +280,50 @@ const buildResumeHtml = (resume) => {
             color: #94a3b8;
           }
 
+          .timeline-item {
+            margin-top: 14px;
+            border-left: 2px solid #e2e8f0;
+            padding-left: 12px;
+          }
+
+          .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+          }
+
+          .timeline-role {
+            font-weight: 700;
+            font-size: 13px;
+            color: #0f172a;
+          }
+
+          .timeline-date {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 500;
+          }
+
+          .timeline-meta {
+            font-size: 11.5px;
+            color: #2563eb;
+            font-weight: 600;
+            margin-top: 2px;
+          }
+
+          .timeline-desc {
+            margin: 6px 0 0;
+            font-size: 12px;
+            color: #475569;
+            line-height: 1.6;
+          }
+
+          .timeline-tech {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #64748b;
+          }
+
           .template-classic .hero {
             background: linear-gradient(135deg, #111827 0%, #1d4ed8 100%);
           }
@@ -318,6 +419,27 @@ const buildResumeHtml = (resume) => {
                       : '<p class="empty-state">Add a summary to introduce your experience and direction.</p>'
                   }
                 </div>
+
+                <div class="section">
+                  <p class="section-label">Professional Experience</p>
+                  ${buildExperienceMarkup(normalized.experience)}
+                </div>
+
+                <div class="section">
+                  <p class="section-label">Education</p>
+                  ${buildEducationMarkup(normalized.education)}
+                </div>
+
+                ${
+                  normalized.projects && normalized.projects.length > 0
+                    ? `
+                    <div class="section">
+                      <p class="section-label">Projects</p>
+                      ${buildProjectsMarkup(normalized.projects)}
+                    </div>
+                    `
+                    : ''
+                }
               </section>
 
               <aside class="side-column">

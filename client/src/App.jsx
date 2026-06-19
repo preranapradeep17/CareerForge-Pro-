@@ -20,6 +20,19 @@ import {
   setSkillsResult,
   setJdResult,
   setBulletResult,
+  setTemplate,
+  addExperience,
+  updateExperience,
+  removeExperience,
+  setExperience,
+  addEducation,
+  updateEducation,
+  removeEducation,
+  setEducation,
+  addProject,
+  updateProject,
+  removeProject,
+  setProjects,
 } from './store/resumeSlice';
 import { scoreResumeAgainstJD } from './utils/atsScorer';
 
@@ -144,7 +157,16 @@ function useCareerForgeApp() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, token, isLoggedIn } = useSelector((state) => state.auth);
-  const { resumeData, atsScore, template, ai } = useSelector((state) => state.resume);
+  const { resumeData, experience, education, projects, atsScore, template, ai } = useSelector((state) => state.resume);
+
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   const [registerForm, setRegisterForm] = useState(initialRegister);
   const [loginForm, setLoginForm] = useState(initialLogin);
@@ -214,6 +236,7 @@ function useCareerForgeApp() {
 
   const handleLoadResume = (resume) => {
     setResumeId(resume._id);
+    dispatch(updateResumeField({ field: 'name', value: resume.name || 'Untitled Resume' }));
     dispatch(updateResumeField({ field: 'fullName', value: resume.personalInfo?.fullName || '' }));
     dispatch(updateResumeField({ field: 'title', value: resume.targetJD || '' }));
     dispatch(updateResumeField({ field: 'summary', value: resume.personalInfo?.summary || '' }));
@@ -222,6 +245,9 @@ function useCareerForgeApp() {
       value: Array.isArray(resume.skills) ? resume.skills.join(', ') : '',
     }));
     dispatch(setTemplate(resume.template || 'classic'));
+    dispatch(setExperience(resume.experience || []));
+    dispatch(setEducation(resume.education || []));
+    dispatch(setProjects(resume.projects || []));
     toast.success('Resume loaded in builder');
     navigate(`/resume/${resume._id}`);
   };
@@ -464,6 +490,7 @@ function useCareerForgeApp() {
     : Math.max(Math.round(atsScore / 10), 1);
 
   const mapResumePayload = () => ({
+    name: resumeData.name || 'Untitled Resume',
     personalInfo: {
       fullName: resumeData.fullName,
       summary: resumeData.summary,
@@ -471,13 +498,20 @@ function useCareerForgeApp() {
       phone: '',
       location: '',
     },
-    experience: [],
-    education: [],
+    experience: experience || [],
+    education: education || [],
     skills: resumeData.skills
       .split(',')
       .map((skill) => skill.trim())
       .filter(Boolean),
-    projects: [],
+    projects: (projects || []).map((p) => ({
+      title: p.title || '',
+      description: p.description || '',
+      technologies: typeof p.technologies === 'string'
+        ? p.technologies.split(',').map((t) => t.trim()).filter(Boolean)
+        : Array.isArray(p.technologies) ? p.technologies : [],
+      link: p.link || '',
+    })),
     atsScore,
     template,
     targetJD: resumeData.title,
@@ -1008,6 +1042,7 @@ function useCareerForgeApp() {
       const data = await response.json();
       if (response.ok && data.resume) {
         setResumeId(data.resume._id);
+        dispatch(updateResumeField({ field: 'name', value: data.resume.name || 'Untitled Resume' }));
         dispatch(updateResumeField({ field: 'fullName', value: data.resume.personalInfo?.fullName || '' }));
         dispatch(updateResumeField({ field: 'title', value: data.resume.targetJD || '' }));
         dispatch(updateResumeField({ field: 'summary', value: data.resume.personalInfo?.summary || '' }));
@@ -1016,6 +1051,12 @@ function useCareerForgeApp() {
           value: Array.isArray(data.resume.skills) ? data.resume.skills.join(', ') : '',
         }));
         dispatch(setTemplate(data.resume.template || 'classic'));
+        dispatch(setExperience(data.resume.experience || []));
+        dispatch(setEducation(data.resume.education || []));
+        dispatch(setProjects((data.resume.projects || []).map((p) => ({
+          ...p,
+          technologies: Array.isArray(p.technologies) ? p.technologies.join(', ') : (p.technologies || ''),
+        }))));
       }
     } catch (error) {
       console.error('Failed to fetch resume by id:', error.message);
@@ -1026,11 +1067,15 @@ function useCareerForgeApp() {
 
   const handleCreateNewResume = () => {
     setResumeId(null);
+    dispatch(updateResumeField({ field: 'name', value: 'Untitled Resume' }));
     dispatch(updateResumeField({ field: 'fullName', value: '' }));
     dispatch(updateResumeField({ field: 'title', value: '' }));
     dispatch(updateResumeField({ field: 'summary', value: '' }));
     dispatch(updateResumeField({ field: 'skills', value: '' }));
     dispatch(setTemplate('classic'));
+    dispatch(setExperience([]));
+    dispatch(setEducation([]));
+    dispatch(setProjects([]));
     navigate('/resume-builder');
   };
 
@@ -1041,14 +1086,40 @@ function useCareerForgeApp() {
     }
   };
 
+  const handleAddExperience = () => dispatch(addExperience());
+  const handleUpdateExperience = (index, field, value) => dispatch(updateExperience({ index, field, value }));
+  const handleRemoveExperience = (index) => dispatch(removeExperience(index));
+
+  const handleAddEducation = () => dispatch(addEducation());
+  const handleUpdateEducation = (index, field, value) => dispatch(updateEducation({ index, field, value }));
+  const handleRemoveEducation = (index) => dispatch(removeEducation(index));
+
+  const handleAddProject = () => dispatch(addProject());
+  const handleUpdateProject = (index, field, value) => dispatch(updateProject({ index, field, value }));
+  const handleRemoveProject = (index) => dispatch(removeProject(index));
+
   return {
     user,
     token,
     isLoggedIn,
     resumeData,
+    experience,
+    education,
+    projects,
     atsScore,
     template,
     ai,
+    theme,
+    toggleTheme,
+    handleAddExperience,
+    handleUpdateExperience,
+    handleRemoveExperience,
+    handleAddEducation,
+    handleUpdateEducation,
+    handleRemoveEducation,
+    handleAddProject,
+    handleUpdateProject,
+    handleRemoveProject,
     registerForm,
     loginForm,
     loading,
@@ -1154,9 +1225,24 @@ function ProtectedLayout({ app }) {
             </div>
             <span>{user?.email || 'No email loaded yet'}</span>
           </div>
-          <button type="button" className="ghost-button" onClick={() => handleLogout()}>
-            Logout
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', marginBottom: '0.65rem' }}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={app.toggleTheme}
+              style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}
+            >
+              {app.theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+            </button>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => handleLogout()}
+              style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem' }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -1472,8 +1558,55 @@ function AtsBadge({ score }) {
   );
 }
 
+function AtsGauge({ score, size = 48 }) {
+  const radius = (size - 8) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (score / 100) * circumference;
+
+  const getColor = (s) => {
+    if (s >= 85) return '#2dd4bf'; // teal
+    if (s >= 70) return '#fbbf24'; // yellow
+    return '#fb7185'; // red
+  };
+
+  return (
+    <div className="ats-gauge-container" style={{ width: size, height: size, position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', top: 0, left: 0 }}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="var(--line)"
+          strokeWidth="4"
+          fill="transparent"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={getColor(score)}
+          strokeWidth="4"
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+        />
+      </svg>
+      <span style={{
+        fontFamily: "'Space Grotesk', sans-serif",
+        fontSize: '0.82rem',
+        fontWeight: '700',
+        color: getColor(score),
+        zIndex: 1,
+      }}>{score}%</span>
+    </div>
+  );
+}
+
 function DashboardPage({ app }) {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const bestScore = app.resumes.length > 0
     ? Math.max(...app.resumes.map((r) => r.atsScore || 0))
@@ -1527,8 +1660,22 @@ function DashboardPage({ app }) {
       <div className="dashboard-grid-layout">
         {/* Left Side: My Resumes */}
         <section className="dashboard-resumes-section">
-          <div className="surface-card__header" style={{ marginBottom: '1.5rem' }}>
+          <div className="surface-card__header" style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <h3 style={{ fontSize: '1.4rem', margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>My Resumes</h3>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="🔍 Search resumes by label, candidate name, or template..."
+              style={{
+                padding: '0.65rem 1rem',
+                borderRadius: '12px',
+                border: '1px solid var(--line)',
+                background: 'rgba(7, 14, 28, 0.38)',
+                color: 'var(--text)',
+                fontSize: '0.88rem',
+              }}
+            />
           </div>
 
           {app.loadingResumes ? (
@@ -1544,84 +1691,7 @@ function DashboardPage({ app }) {
                 </article>
               ))}
             </div>
-          ) : app.resumes.length > 0 ? (
-            <div className="dashboard-resume-grid">
-              {app.resumes.map((resume) => {
-                const formattedDate = new Date(resume.updatedAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                });
-
-                return (
-                  <article key={resume._id} className="resume-card">
-                    {/* Live scaled-down template preview thumbnail */}
-                    <div className="resume-card__thumbnail">
-                      <div className="resume-card__thumbnail-scale">
-                        <ResumePreview
-                          resumeData={{
-                            fullName: resume.personalInfo?.fullName || 'Untitled',
-                            title: resume.targetJD || 'General Role',
-                            summary: resume.personalInfo?.summary || '',
-                            skills: Array.isArray(resume.skills) ? resume.skills.join(', ') : '',
-                          }}
-                          template={resume.template}
-                          atsScore={resume.atsScore}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Body Content */}
-                    <div className="resume-card__body">
-                      <div className="resume-card__title-row">
-                        <h4 className="resume-card__title">
-                          {resume.personalInfo?.fullName || 'Untitled Resume'}
-                        </h4>
-                        <AtsBadge score={resume.atsScore} />
-                      </div>
-
-                      <p className="resume-card__role">
-                        Target Role: <strong>{resume.targetJD || 'General Role'}</strong>
-                      </p>
-
-                      <div className="resume-card__metadata">
-                        <span>🎨 {resume.template.toUpperCase()}</span>
-                        <span>📅 {formattedDate}</span>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="resume-card__actions">
-                        <button
-                          type="button"
-                          className="primary-button"
-                          style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
-                          onClick={() => navigate(`/resume/${resume._id}`)}
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
-                          onClick={() => app.handleExportPdfDirectly(resume)}
-                        >
-                          ⬇️ Download
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost-button"
-                          style={{ padding: '0.5rem', fontSize: '0.82rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}
-                          onClick={() => app.handleDeleteResume(resume._id)}
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
+          ) : app.resumes.length === 0 ? (
             <div className="surface-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
               <p className="ai-helper" style={{ fontSize: '1.1rem', marginBottom: '1.2rem' }}>
                 You haven't created any resumes yet. Click "+ New Resume" to begin.
@@ -1634,7 +1704,107 @@ function DashboardPage({ app }) {
                 Create Your First Resume
               </button>
             </div>
-          )}
+          ) : (() => {
+            const filteredResumes = app.resumes.filter((resume) => {
+              const name = (resume.name || '').toLowerCase();
+              const fullName = (resume.personalInfo?.fullName || '').toLowerCase();
+              const title = (resume.targetJD || '').toLowerCase();
+              const template = (resume.template || '').toLowerCase();
+              const query = searchQuery.toLowerCase();
+              return name.includes(query) || fullName.includes(query) || title.includes(query) || template.includes(query);
+            });
+
+            if (filteredResumes.length === 0) {
+              return (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted)' }}>
+                  No resumes match your search query.
+                </div>
+              );
+            }
+
+            return (
+              <div className="dashboard-resume-grid">
+                {filteredResumes.map((resume) => {
+                  const formattedDate = new Date(resume.updatedAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  });
+
+                  return (
+                    <article key={resume._id} className="resume-card">
+                      {/* Live scaled-down template preview thumbnail */}
+                      <div className="resume-card__thumbnail">
+                        <div className="resume-card__thumbnail-scale">
+                          <ResumePreview
+                            resumeData={{
+                              name: resume.name,
+                              fullName: resume.personalInfo?.fullName || 'Untitled',
+                              title: resume.targetJD || 'General Role',
+                              summary: resume.personalInfo?.summary || '',
+                              skills: Array.isArray(resume.skills) ? resume.skills.join(', ') : '',
+                            }}
+                            experience={resume.experience}
+                            education={resume.education}
+                            projects={resume.projects}
+                            template={resume.template}
+                            atsScore={resume.atsScore}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Body Content */}
+                      <div className="resume-card__body">
+                        <div className="resume-card__title-row">
+                          <h4 className="resume-card__title">
+                            {resume.name || resume.personalInfo?.fullName || 'Untitled Resume'}
+                          </h4>
+                          <AtsBadge score={resume.atsScore} />
+                        </div>
+
+                        <p className="resume-card__role">
+                          Target Role: <strong>{resume.targetJD || 'General Role'}</strong>
+                        </p>
+
+                        <div className="resume-card__metadata">
+                          <span>🎨 {resume.template.toUpperCase()}</span>
+                          <span>📅 {formattedDate}</span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="resume-card__actions">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
+                            onClick={() => navigate(`/resume/${resume._id}`)}
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            style={{ padding: '0.5rem', fontSize: '0.82rem', flex: 1 }}
+                            onClick={() => app.handleExportPdfDirectly(resume)}
+                          >
+                            ⬇️ Download
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-button"
+                            style={{ padding: '0.5rem', fontSize: '0.82rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                            onClick={() => app.handleDeleteResume(resume._id)}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </section>
 
         {/* Right Side: Recent Activity & AI Tips */}
@@ -1644,9 +1814,45 @@ function DashboardPage({ app }) {
               <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Recent Activity</h3>
             </div>
             <ul className="insight-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              <li>✓ Resume Updated & Auto-saved</li>
-              <li>✓ ATS Match Score Calculated</li>
-              <li>✓ AI Cover Letter Draft Synced</li>
+              {(() => {
+                if (!app.resumes || app.resumes.length === 0) {
+                  return <li>Create your first resume to track activity</li>;
+                }
+
+                const activities = app.resumes.flatMap((resume) => {
+                  const formattedDate = new Date(resume.updatedAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  
+                  const list = [];
+                  list.push({
+                    id: `update-${resume._id}`,
+                    text: `✓ "${resume.name || resume.personalInfo?.fullName || 'Untitled'}" updated on ${formattedDate}`,
+                    time: new Date(resume.updatedAt).getTime(),
+                  });
+
+                  if (resume.atsScore > 0) {
+                    list.push({
+                      id: `ats-${resume._id}`,
+                      text: `🎯 "${resume.name || resume.personalInfo?.fullName || 'Untitled'}" scored ${resume.atsScore}% ATS Match`,
+                      time: new Date(resume.updatedAt).getTime() - 1000,
+                    });
+                  }
+
+                  return list;
+                });
+
+                const sorted = activities
+                  .sort((a, b) => b.time - a.time)
+                  .slice(0, 5);
+
+                return sorted.map((act) => (
+                  <li key={act.id}>{act.text}</li>
+                ));
+              })()}
             </ul>
           </article>
 
@@ -1751,6 +1957,58 @@ function ResumeBuilderPage({ app }) {
               />
             </label>
 
+            {/* Completeness Progress Bar */}
+            {(() => {
+              const completeness = [
+                app.resumeData.fullName ? 15 : 0,
+                app.resumeData.title ? 15 : 0,
+                app.resumeData.summary ? 20 : 0,
+                app.resumeData.skills ? 15 : 0,
+                app.experience && app.experience.length > 0 ? 15 : 0,
+                app.education && app.education.length > 0 ? 10 : 0,
+                app.projects && app.projects.length > 0 ? 10 : 0,
+              ].reduce((a, b) => a + b, 0);
+
+              const getTip = () => {
+                if (!app.resumeData.fullName) return 'Add your name';
+                if (!app.resumeData.title) return 'Add your target job title';
+                if (!app.resumeData.summary) return 'Add a professional summary';
+                if (!app.resumeData.skills) return 'Add your core skills';
+                if (!app.experience || app.experience.length === 0) return 'Add work experience';
+                if (!app.education || app.education.length === 0) return 'Add education history';
+                if (!app.projects || app.projects.length === 0) return 'Add a project';
+                return 'Your resume is complete!';
+              };
+
+              return (
+                <div className="completeness-bar-container" style={{ margin: '0.5rem 0 1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.82rem' }}>
+                    <span style={{ color: 'var(--muted)' }}>Resume Completeness</span>
+                    <span style={{ fontWeight: '700', color: completeness === 100 ? 'var(--success)' : 'var(--brand)' }}>
+                      {completeness}%
+                    </span>
+                  </div>
+                  <div className="completeness-track">
+                    <div className="completeness-fill" style={{ width: `${completeness}%` }} />
+                  </div>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.74rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                    💡 Tip: {getTip()}
+                  </p>
+                </div>
+              );
+            })()}
+
+            <label>
+              Resume Label / Name
+              <input
+                type="text"
+                name="name"
+                value={app.resumeData.name || ''}
+                onChange={app.handleResumeChange}
+                placeholder="e.g. Google Application, Frontend Resume"
+              />
+            </label>
+
             <label>
               Full Name
               <input
@@ -1795,6 +2053,253 @@ function ResumeBuilderPage({ app }) {
               />
             </label>
 
+            {/* Experience Builder */}
+            <div className="section-builder">
+              <div className="section-builder__header">
+                <h4>Work Experience</h4>
+                <button
+                  type="button"
+                  className="ghost-button ghost-button--small"
+                  onClick={app.handleAddExperience}
+                >
+                  + Add
+                </button>
+              </div>
+              {app.experience?.map((exp, idx) => (
+                <div key={idx} className="builder-card">
+                  <div className="builder-card__header">
+                    <span>Experience #{idx + 1}</span>
+                    <button
+                      type="button"
+                      className="danger-button-text"
+                      onClick={() => app.handleRemoveExperience(idx)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div className="grid-2col">
+                    <label>
+                      Company
+                      <input
+                        type="text"
+                        value={exp.company}
+                        onChange={(e) => app.handleUpdateExperience(idx, 'company', e.target.value)}
+                        placeholder="Company Name"
+                      />
+                    </label>
+                    <label>
+                      Role / Title
+                      <input
+                        type="text"
+                        value={exp.role}
+                        onChange={(e) => app.handleUpdateExperience(idx, 'role', e.target.value)}
+                        placeholder="e.g. Software Engineer"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid-3col">
+                    <label>
+                      Location
+                      <input
+                        type="text"
+                        value={exp.location}
+                        onChange={(e) => app.handleUpdateExperience(idx, 'location', e.target.value)}
+                        placeholder="e.g. San Francisco, CA"
+                      />
+                    </label>
+                    <label>
+                      Start Date
+                      <input
+                        type="text"
+                        value={exp.startDate}
+                        onChange={(e) => app.handleUpdateExperience(idx, 'startDate', e.target.value)}
+                        placeholder="e.g. Jan 2022"
+                      />
+                    </label>
+                    <label>
+                      End Date
+                      <input
+                        type="text"
+                        value={exp.endDate}
+                        disabled={exp.currentlyWorking}
+                        onChange={(e) => app.handleUpdateExperience(idx, 'endDate', e.target.value)}
+                        placeholder="e.g. Dec 2023"
+                      />
+                    </label>
+                  </div>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={exp.currentlyWorking}
+                      onChange={(e) => app.handleUpdateExperience(idx, 'currentlyWorking', e.target.checked)}
+                    />
+                    I currently work here
+                  </label>
+                  <label>
+                    Description
+                    <textarea
+                      value={exp.description}
+                      onChange={(e) => app.handleUpdateExperience(idx, 'description', e.target.value)}
+                      rows={3}
+                      placeholder="Describe key responsibilities and impact."
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {/* Education Builder */}
+            <div className="section-builder">
+              <div className="section-builder__header">
+                <h4>Education</h4>
+                <button
+                  type="button"
+                  className="ghost-button ghost-button--small"
+                  onClick={app.handleAddEducation}
+                >
+                  + Add
+                </button>
+              </div>
+              {app.education?.map((edu, idx) => (
+                <div key={idx} className="builder-card">
+                  <div className="builder-card__header">
+                    <span>Education #{idx + 1}</span>
+                    <button
+                      type="button"
+                      className="danger-button-text"
+                      onClick={() => app.handleRemoveEducation(idx)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div className="grid-2col">
+                    <label>
+                      Institution
+                      <input
+                        type="text"
+                        value={edu.institution}
+                        onChange={(e) => app.handleUpdateEducation(idx, 'institution', e.target.value)}
+                        placeholder="e.g. Stanford University"
+                      />
+                    </label>
+                    <label>
+                      Degree
+                      <input
+                        type="text"
+                        value={edu.degree}
+                        onChange={(e) => app.handleUpdateEducation(idx, 'degree', e.target.value)}
+                        placeholder="e.g. Bachelor of Science"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid-3col">
+                    <label>
+                      Field of Study
+                      <input
+                        type="text"
+                        value={edu.fieldOfStudy}
+                        onChange={(e) => app.handleUpdateEducation(idx, 'fieldOfStudy', e.target.value)}
+                        placeholder="e.g. Computer Science"
+                      />
+                    </label>
+                    <label>
+                      Start Date
+                      <input
+                        type="text"
+                        value={edu.startDate}
+                        onChange={(e) => app.handleUpdateEducation(idx, 'startDate', e.target.value)}
+                        placeholder="e.g. 2018"
+                      />
+                    </label>
+                    <label>
+                      End Date
+                      <input
+                        type="text"
+                        value={edu.endDate}
+                        onChange={(e) => app.handleUpdateEducation(idx, 'endDate', e.target.value)}
+                        placeholder="e.g. 2022"
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Grade / GPA
+                    <input
+                      type="text"
+                      value={edu.grade}
+                      onChange={(e) => app.handleUpdateEducation(idx, 'grade', e.target.value)}
+                      placeholder="e.g. 3.8/4.0"
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {/* Projects Builder */}
+            <div className="section-builder">
+              <div className="section-builder__header">
+                <h4>Projects</h4>
+                <button
+                  type="button"
+                  className="ghost-button ghost-button--small"
+                  onClick={app.handleAddProject}
+                >
+                  + Add
+                </button>
+              </div>
+              {app.projects?.map((proj, idx) => (
+                <div key={idx} className="builder-card">
+                  <div className="builder-card__header">
+                    <span>Project #{idx + 1}</span>
+                    <button
+                      type="button"
+                      className="danger-button-text"
+                      onClick={() => app.handleRemoveProject(idx)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div className="grid-2col">
+                    <label>
+                      Project Title
+                      <input
+                        type="text"
+                        value={proj.title}
+                        onChange={(e) => app.handleUpdateProject(idx, 'title', e.target.value)}
+                        placeholder="Project Name"
+                      />
+                    </label>
+                    <label>
+                      Link
+                      <input
+                        type="text"
+                        value={proj.link}
+                        onChange={(e) => app.handleUpdateProject(idx, 'link', e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Technologies Used (comma separated)
+                    <input
+                      type="text"
+                      value={proj.technologies}
+                      onChange={(e) => app.handleUpdateProject(idx, 'technologies', e.target.value)}
+                      placeholder="e.g. React, Express, MongoDB"
+                    />
+                  </label>
+                  <label>
+                    Description
+                    <textarea
+                      value={proj.description}
+                      onChange={(e) => app.handleUpdateProject(idx, 'description', e.target.value)}
+                      rows={2}
+                      placeholder="Briefly describe the project's key highlights."
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+
             <div style={{ display: 'grid', gap: '0.55rem' }}>
               <span style={{ color: '#d8e5fb', fontSize: '0.92rem' }}>Resume Template</span>
               <div className="template-switcher">
@@ -1823,12 +2328,15 @@ function ResumeBuilderPage({ app }) {
         </div>
 
         <article className="surface-card builder-preview">
-          <div className="surface-card__header">
+          <div className="surface-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Live Preview</h3>
-            <span className="status-pill status-pill--accent">ATS Score: {app.atsScore}%</span>
+            <AtsGauge score={app.atsScore} size={48} />
           </div>
           <ResumePreview
             resumeData={app.resumeData}
+            experience={app.experience}
+            education={app.education}
+            projects={app.projects}
             template={app.template}
             atsScore={app.atsScore}
           />
@@ -2093,6 +2601,9 @@ function TemplatesPage({ app }) {
                 <div className="template-thumb-scale">
                   <ResumePreview
                     resumeData={app.resumeData}
+                    experience={app.experience}
+                    education={app.education}
+                    projects={app.projects}
                     template={tpl.key}
                     atsScore={app.atsScore}
                   />
@@ -2319,7 +2830,14 @@ function CoverLetterPage({ app }) {
         <article className="surface-card builder-preview">
           <div className="surface-card__header">
             <h3>Editable Cover Letter</h3>
-            <span className="status-pill status-pill--accent">Ready to refine</span>
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              {coverLetter && (
+                <span className="status-pill status-pill--accent" style={{ fontSize: '0.74rem' }}>
+                  {coverLetter.trim().split(/\s+/).filter(Boolean).length} words / {coverLetter.length} chars
+                </span>
+              )}
+              <span className="status-pill">Ready to refine</span>
+            </div>
           </div>
           {isGenerating ? (
             <div className="skeleton-card" style={{ height: '360px', justifyContent: 'center' }}>
@@ -2345,9 +2863,37 @@ function CoverLetterPage({ app }) {
                 type="button"
                 className="primary-button"
                 onClick={() => setIsEditModalOpen(true)}
-                style={{ flex: 1 }}
+                style={{ flex: 1.5 }}
               >
                 ✏️ Open in Modal Editor
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  navigator.clipboard.writeText(coverLetter);
+                  toast.success('Cover letter copied to clipboard');
+                }}
+                style={{ flex: 1 }}
+              >
+                📋 Copy Text
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  const element = document.createElement("a");
+                  const file = new Blob([coverLetter], { type: 'text/plain' });
+                  element.href = URL.createObjectURL(file);
+                  element.download = `${app.resumeData.fullName || 'CareerForge'}_CoverLetter.txt`;
+                  document.body.appendChild(element);
+                  element.click();
+                  document.body.removeChild(element);
+                  toast.success('Cover letter downloaded as .TXT');
+                }}
+                style={{ flex: 1 }}
+              >
+                📥 Download .TXT
               </button>
             </div>
           )}
@@ -2409,9 +2955,46 @@ function SettingsPage({ app }) {
   );
 }
 
-function ResumePreview({ resumeData, template, atsScore }) {
+const highlightText = (text, skillsStr) => {
+  if (!text || !skillsStr) return text;
+  const skills = skillsStr
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 2);
+  if (skills.length === 0) return text;
+
+  const escapedSkills = skills.map((s) => s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
+  const pattern = new RegExp(`\\b(${escapedSkills.join('|')})\\b`, 'gi');
+
+  const parts = text.split(pattern);
+  return parts.map((part, i) => {
+    const isMatch = skills.some((s) => s.toLowerCase() === part.toLowerCase());
+    return isMatch ? (
+      <mark key={i} className="highlighted-keyword">
+        {part}
+      </mark>
+    ) : (
+      part
+    );
+  });
+};
+
+function ResumePreview({ resumeData, experience = [], education = [], projects = [], template, atsScore }) {
   const TemplateComponent = TEMPLATES[template] ?? TEMPLATES.classic;
-  return <TemplateComponent resumeData={resumeData} atsScore={atsScore} />;
+
+  const highlightedSummary = typeof resumeData.summary === 'string'
+    ? highlightText(resumeData.summary, resumeData.skills)
+    : resumeData.summary;
+
+  const mixedResumeData = {
+    ...resumeData,
+    summary: highlightedSummary,
+    experience,
+    education,
+    projects,
+  };
+
+  return <TemplateComponent resumeData={mixedResumeData} atsScore={atsScore} />;
 }
 
 function ChipRow({ title, items, className }) {

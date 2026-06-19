@@ -52,32 +52,89 @@ export default function ClassicTemplate({ resumeData = {}, atsScore = 0 }) {
           )}
         </section>
 
-        {/* ── Experience placeholder ── */}
+        {/* ── Experience ── */}
         <section style={styles.section}>
           <p style={styles.sectionLabel}>Professional Experience</p>
           <div style={styles.rule} />
-          <div style={styles.experiencePlaceholder}>
-            <p style={styles.placeholderTitle}>Senior Role · Company Name</p>
-            <p style={styles.placeholderDate}>Jan 2022 – Present · City, State</p>
-            <ul style={styles.bulletList}>
-              <li>Led cross-functional initiatives that improved team delivery by 30%.</li>
-              <li>Collaborated with stakeholders to refine product scope and roadmap alignment.</li>
-            </ul>
-          </div>
+          {resumeData.experience && resumeData.experience.length > 0 ? (
+            resumeData.experience.map((exp, index) => (
+              <div key={index} style={{ ...styles.experiencePlaceholder, marginTop: index > 0 ? '1rem' : '0' }}>
+                <p style={styles.placeholderTitle}>
+                  {exp.role || 'Role Title'} · {exp.company || 'Company'}
+                </p>
+                <p style={styles.placeholderDate}>
+                  {exp.startDate || 'Start Date'} – {exp.currentlyWorking ? 'Present' : (exp.endDate || 'End Date')}
+                  {exp.location ? ` · ${exp.location}` : ''}
+                </p>
+                {exp.description && (
+                  <p style={{ ...styles.summaryText, marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                    {exp.description}
+                  </p>
+                )}
+              </div>
+            ))
+          ) : (
+            <p style={styles.emptyNote}>Add professional experience in the editor.</p>
+          )}
         </section>
 
-        {/* ── Education placeholder ── */}
+        {/* ── Education ── */}
         <section style={styles.section}>
           <p style={styles.sectionLabel}>Education</p>
           <div style={styles.rule} />
-          <div style={styles.educationRow}>
-            <div>
-              <p style={styles.placeholderTitle}>Bachelor of Science · Computer Science</p>
-              <p style={styles.placeholderDate}>University Name · 2018–2022</p>
-            </div>
-            <span style={styles.gpaTag}>GPA: 3.8</span>
-          </div>
+          {resumeData.education && resumeData.education.length > 0 ? (
+            resumeData.education.map((edu, index) => (
+              <div key={index} style={{ ...styles.educationRow, marginTop: index > 0 ? '0.75rem' : '0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                <div>
+                  <p style={styles.placeholderTitle}>
+                    {edu.degree || 'Degree'}{edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''}
+                  </p>
+                  <p style={styles.placeholderDate}>
+                    {edu.institution || 'Institution'}{edu.startDate ? ` · ${edu.startDate}–${edu.endDate || ''}` : ''}
+                  </p>
+                </div>
+                {edu.grade && <span style={styles.gpaTag}>GPA: {edu.grade}</span>}
+              </div>
+            ))
+          ) : (
+            <p style={styles.emptyNote}>Add education history in the editor.</p>
+          )}
         </section>
+
+        {/* ── Projects ── */}
+        {resumeData.projects && resumeData.projects.length > 0 && (
+          <section style={styles.section}>
+            <p style={styles.sectionLabel}>Projects</p>
+            <div style={styles.rule} />
+            {resumeData.projects.map((proj, index) => (
+              <div key={index} style={{ ...styles.experiencePlaceholder, marginTop: index > 0 ? '1rem' : '0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <p style={styles.placeholderTitle}>{proj.title || 'Project Title'}</p>
+                  {proj.link && (
+                    <a
+                      href={proj.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '0.76rem', color: '#1e40af', textDecoration: 'underline' }}
+                    >
+                      Project Link
+                    </a>
+                  )}
+                </div>
+                {proj.description && (
+                  <p style={{ ...styles.summaryText, marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                    {proj.description}
+                  </p>
+                )}
+                {proj.technologies && (
+                  <p style={{ ...styles.placeholderDate, marginTop: '0.25rem' }}>
+                    <strong>Technologies:</strong> {proj.technologies}
+                  </p>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
       </div>
 
       {/* ── Footer ── */}

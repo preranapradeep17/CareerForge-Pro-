@@ -1565,6 +1565,185 @@ label {
   width: 50%;
 }
 
+/* ─── Light Theme Overrides ─────────────────────────────────────────────── */
+:root[data-theme='light'] {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --panel-soft: #f1f5f9;
+  --surface: rgba(255, 255, 255, 0.85);
+  --surface-light: #0f172a;
+  --text: #0f172a;
+  --muted: #475569;
+  --line: rgba(15, 23, 42, 0.08);
+  --brand: #2b7fff;
+  --brand-deep: #1d4ed8;
+  --success: #0d9488;
+  --danger: #e11d48;
+  --shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme='light'] input,
+:root[data-theme='light'] textarea,
+:root[data-theme='light'] select {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: var(--text);
+}
+
+:root[data-theme='light'] input::placeholder,
+:root[data-theme='light'] textarea::placeholder {
+  color: #94a3b8;
+}
+
+:root[data-theme='light'] label {
+  color: #334155;
+}
+
+:root[data-theme='light'] .status-pill {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+:root[data-theme='light'] .eyebrow {
+  color: #2563eb;
+}
+
+:root[data-theme='light'] .ghost-link {
+  color: #475569;
+}
+
+:root[data-theme='light'] .ghost-link:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+:root[data-theme='light'] .skeleton-card {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+:root[data-theme='light'] .skeleton-thumbnail,
+:root[data-theme='light'] .skeleton-title,
+:root[data-theme='light'] .skeleton-text {
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.02) 25%, rgba(15, 23, 42, 0.06) 50%, rgba(15, 23, 42, 0.02) 75%);
+}
+
+/* ─── Experience, Education, & Projects Section Builder Styles ──────────── */
+.section-builder {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.5rem;
+}
+
+.section-builder__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-builder__header h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.builder-card {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.builder-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.danger-button-text {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.grid-3col {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 0.9fr;
+  gap: 0.8rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.ghost-button--small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 8px;
+}
+
+/* ─── Completeness Bar Styles ───────────────────────────────────────────── */
+.completeness-bar-container {
+  padding: 0.85rem 1rem;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.completeness-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.completeness-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--success) 100%);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* ─── Keyword Highlight Style ───────────────────────────────────────────── */
+.highlighted-keyword {
+  background: rgba(45, 212, 191, 0.22);
+  color: inherit;
+  border-bottom: 2px solid var(--success);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 
 
 

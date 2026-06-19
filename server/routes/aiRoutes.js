@@ -19,6 +19,44 @@ const upload = multer({
 });
 const MAX_RESUME_TEXT_CHARS = 15000;
 
+const rateLimitStore = {};
+
+const aiRateLimiter = (req, res, next) => {
+  const userId = req.user?.id || req.ip;
+  const plan = req.user?.plan || 'free';
+  const limit = plan === 'pro' ? 100 : 10; // 100/hr for pro, 10/hr for free
+  const windowMs = 60 * 60 * 1000; // 1 hour
+
+  const now = Date.now();
+  if (!rateLimitStore[userId]) {
+    rateLimitStore[userId] = {
+      resetTime: now + windowMs,
+      count: 0,
+    };
+  }
+
+  const record = rateLimitStore[userId];
+
+  // Reset window if expired
+  if (now > record.resetTime) {
+    record.resetTime = now + windowMs;
+    record.count = 0;
+  }
+
+  if (record.count >= limit) {
+    const remainingMins = Math.ceil((record.resetTime - now) / 60000);
+    return res.status(429).json({
+      message: `Rate limit exceeded. Please try again in ${remainingMins} minutes. Upgrade to Pro for 10x higher limits.`,
+    });
+  }
+
+  record.count++;
+  res.setHeader('X-RateLimit-Limit', limit);
+  res.setHeader('X-RateLimit-Remaining', limit - record.count);
+  res.setHeader('X-RateLimit-Reset', new Date(record.resetTime).toISOString());
+  next();
+};
+
 const normalizeSkill = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
 const extractSkillsFromText = (rawText) => {
@@ -53,7 +91,7 @@ const normalizeParsedResume = (result, rawText) => {
 // ─── POST /api/ai/improve-summary ─────────────────────────────────────────────
 // Body: { summary: string, jobTitle: string }
 // Returns: { improvedSummary: string, tips: string[] }
-router.post('/improve-summary', protect, async (req, res) => {
+router.post('/improve-summary', protect, aiRateLimiter, async (req, res) => {
   try {
     const { summary, jobTitle } = req.body;
 
@@ -77,7 +115,7 @@ router.post('/improve-summary', protect, async (req, res) => {
 // ─── POST /api/ai/ats-analysis ────────────────────────────────────────────────
 // Body: { resumeData: { fullName, title, summary, skills }, jobDescription: string }
 // Returns: { atsScore: number, missingKeywords: string[], suggestions: string[], overallFeedback: string }
-router.post('/ats-analysis', protect, async (req, res) => {
+router.post('/ats-analysis', protect, aiRateLimiter, async (req, res) => {
   try {
     const { resumeData, jobDescription } = req.body;
 
@@ -101,7 +139,7 @@ router.post('/ats-analysis', protect, async (req, res) => {
 // ─── POST /api/ai/suggest-skills ──────────────────────────────────────────────
 // Body: { currentSkills: string[] | string, jobTitle: string }
 // Returns: { suggestedSkills: { skill: string, why: string }[], reason: string }
-router.post('/suggest-skills', protect, async (req, res) => {
+router.post('/suggest-skills', protect, aiRateLimiter, async (req, res) => {
   try {
     const { currentSkills, jobTitle } = req.body;
 
@@ -130,7 +168,7 @@ router.post('/suggest-skills', protect, async (req, res) => {
 // ─── POST /api/ai/analyze-jd ────────────────────────────────────────────────
 // Body: { jobDescription: string }
 // Returns: { hardSkills: string[], softSkills: string[], actionVerbs: string[], domain: string[], seniorityLevel: string[] }
-router.post('/analyze-jd', protect, requirePro, async (req, res) => {
+router.post('/analyze-jd', protect, requirePro, aiRateLimiter, async (req, res) => {
   try {
     const { jobDescription } = req.body;
 
@@ -151,7 +189,7 @@ router.post('/analyze-jd', protect, requirePro, async (req, res) => {
 // ─── POST /api/ai/rewrite-bullet ────────────────────────────────────────────
 // Body: { originalBullet: string, jobDescription?: string, targetKeywords?: string[] | string }
 // Returns: { rewrittenBullet: string, keywordsUsed: string[], improvementNotes: string[] }
-router.post('/rewrite-bullet', protect, requirePro, async (req, res) => {
+router.post('/rewrite-bullet', protect, requirePro, aiRateLimiter, async (req, res) => {
   try {
     const { originalBullet, jobDescription, targetKeywords } = req.body;
 
@@ -183,7 +221,7 @@ router.post('/rewrite-bullet', protect, requirePro, async (req, res) => {
 // ─── POST /api/ai/parse-resume ───────────────────────────────────────────────
 // multipart/form-data: { resume: PDF file }
 // Returns: { fullName, title, summary, skills[] }
-router.post('/parse-resume', protect, upload.single('resume'), async (req, res) => {
+router.post('/parse-resume', protect, upload.single('resume'), aiRateLimiter, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'resume PDF file is required' });
@@ -217,7 +255,7 @@ router.post('/parse-resume', protect, upload.single('resume'), async (req, res) 
 // ─── POST /api/ai/generate-cover-letter ─────────────────────────────────────
 // Body: { resumeData: { fullName, title, summary, skills }, jobDescription: string }
 // Returns: { coverLetter: string }
-router.post('/generate-cover-letter', protect, requirePro, async (req, res) => {
+router.post('/generate-cover-letter', protect, requirePro, aiRateLimiter, async (req, res) => {
   try {
     const { resumeData, jobDescription } = req.body;
 

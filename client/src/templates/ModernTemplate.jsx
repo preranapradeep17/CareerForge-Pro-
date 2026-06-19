@@ -97,20 +97,28 @@ export default function ModernTemplate({ resumeData = {}, atsScore = 0 }) {
             <span style={styles.accentDot} />
             <p style={styles.mainLabel}>Professional Experience</p>
           </div>
-          <div style={styles.expCard}>
-            <div style={styles.expHeader}>
-              <div>
-                <p style={styles.expRole}>Senior Software Engineer</p>
-                <p style={styles.expCompany}>TechCorp Inc. · San Francisco, CA</p>
+          {resumeData.experience && resumeData.experience.length > 0 ? (
+            resumeData.experience.map((exp, index) => (
+              <div key={index} style={{ ...styles.expCard, marginTop: index > 0 ? '1rem' : '0' }}>
+                <div style={styles.expHeader}>
+                  <div>
+                    <p style={styles.expRole}>{exp.role || 'Role Title'}</p>
+                    <p style={styles.expCompany}>{exp.company || 'Company'}{exp.location ? ` · ${exp.location}` : ''}</p>
+                  </div>
+                  <span style={styles.expDate}>
+                    {exp.startDate || 'Start Date'} – {exp.currentlyWorking ? 'Present' : (exp.endDate || 'End Date')}
+                  </span>
+                </div>
+                {exp.description && (
+                  <p style={{ ...styles.mainSummary, marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                    {exp.description}
+                  </p>
+                )}
               </div>
-              <span style={styles.expDate}>2022 – Present</span>
-            </div>
-            <ul style={styles.expBullets}>
-              <li>Architected scalable microservices reducing latency by 40%.</li>
-              <li>Mentored 4 junior engineers through quarterly growth cycles.</li>
-              <li>Drove feature delivery for 3 major product launches on schedule.</li>
-            </ul>
-          </div>
+            ))
+          ) : (
+            <span style={styles.sideEmpty}>Add professional experience in the editor</span>
+          )}
         </section>
 
         {/* Education */}
@@ -119,14 +127,63 @@ export default function ModernTemplate({ resumeData = {}, atsScore = 0 }) {
             <span style={styles.accentDot} />
             <p style={styles.mainLabel}>Education</p>
           </div>
-          <div style={styles.eduRow}>
-            <div>
-              <p style={styles.expRole}>B.Sc. Computer Science</p>
-              <p style={styles.expCompany}>University of Excellence · 2018–2022</p>
-            </div>
-            <span style={styles.expDate}>3.8 GPA</span>
-          </div>
+          {resumeData.education && resumeData.education.length > 0 ? (
+            resumeData.education.map((edu, index) => (
+              <div key={index} style={{ ...styles.eduRow, marginTop: index > 0 ? '0.75rem' : '0' }}>
+                <div>
+                  <p style={styles.expRole}>
+                    {edu.degree || 'Degree'}{edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''}
+                  </p>
+                  <p style={styles.expCompany}>
+                    {edu.institution || 'Institution'}{edu.grade ? ` · GPA: ${edu.grade}` : ''}
+                  </p>
+                </div>
+                <span style={styles.expDate}>
+                  {edu.startDate || 'Start Date'}{edu.endDate ? ` – ${edu.endDate}` : ''}
+                </span>
+              </div>
+            ))
+          ) : (
+            <span style={styles.sideEmpty}>Add education history in the editor</span>
+          )}
         </section>
+
+        {/* Projects */}
+        {resumeData.projects && resumeData.projects.length > 0 && (
+          <section style={styles.mainSection}>
+            <div style={styles.mainSectionHead}>
+              <span style={styles.accentDot} />
+              <p style={styles.mainLabel}>Projects</p>
+            </div>
+            {resumeData.projects.map((proj, index) => (
+              <div key={index} style={{ ...styles.expCard, marginTop: index > 0 ? '1rem' : '0' }}>
+                <div style={styles.expHeader}>
+                  <div>
+                    <p style={styles.expRole}>{proj.title || 'Project Title'}</p>
+                    {proj.technologies && (
+                      <p style={styles.expCompany}><strong>Technologies:</strong> {proj.technologies}</p>
+                    )}
+                  </div>
+                  {proj.link ? (
+                    <a
+                      href={proj.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.expDate}
+                    >
+                      Link
+                    </a>
+                  ) : null}
+                </div>
+                {proj.description && (
+                  <p style={{ ...styles.mainSummary, marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                    {proj.description}
+                  </p>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Footer tag */}
         <div style={styles.mainFooter}>
