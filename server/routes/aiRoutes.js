@@ -3,7 +3,25 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { protect } = require('../middleware/authMiddleware');
 const { requirePro } = require('../middleware/gateMiddleware');
-const { generateJSON } = require('../services/geminiService');
+const {
+  validateBody,
+  improveSummarySchema,
+  atsAnalysisSchema: atsAnalysisValidationSchema,
+  suggestSkillsSchema,
+  analyzeJdSchema,
+  rewriteBulletSchema,
+  generateCoverLetterSchema,
+} = require('../middleware/validationMiddleware');
+const {
+  generateJSON,
+  resumeSummarySchema,
+  atsAnalysisSchema,
+  skillsSuggestionSchema,
+  jdAnalysisSchema,
+  bulletRewriteSchema,
+  resumeParseSchema,
+  coverLetterSchema
+} = require('../services/geminiService');
 const { buildResumeSummaryPrompt } = require('../prompts/resumeSummaryPrompt');
 const { buildAtsAnalysisPrompt } = require('../prompts/atsAnalysisPrompt');
 const { buildSkillsSuggestionPrompt } = require('../prompts/skillsSuggestionPrompt');
@@ -19,42 +37,53 @@ const upload = multer({
 });
 const MAX_RESUME_TEXT_CHARS = 15000;
 
-const rateLimitStore = {};
+const RateLimit = require('../models/RateLimit');
 
-const aiRateLimiter = (req, res, next) => {
-  const userId = req.user?.id || req.ip;
-  const plan = req.user?.plan || 'free';
-  const limit = plan === 'pro' ? 100 : 10; // 100/hr for pro, 10/hr for free
-  const windowMs = 60 * 60 * 1000; // 1 hour
+const aiRateLimiter = async (req, res, next) => {
+  try {
+    const userId = req.user?.id || req.ip;
+    const plan = req.user?.plan || 'free';
+    const limit = plan === 'pro' ? 100 : 10; // 100/hr for pro, 10/hr for free
+    const windowMs = 60 * 60 * 1000; // 1 hour
 
-  const now = Date.now();
-  if (!rateLimitStore[userId]) {
-    rateLimitStore[userId] = {
-      resetTime: now + windowMs,
-      count: 0,
-    };
+    const now = new Date();
+    
+    // Find or create rate limit record
+    let record = await RateLimit.findOne({ key: userId });
+    
+    if (!record) {
+      record = new RateLimit({
+        key: userId,
+        count: 0,
+        resetTime: new Date(now.getTime() + windowMs)
+      });
+    }
+
+    // Reset window if expired
+    if (now > record.resetTime) {
+      record.resetTime = new Date(now.getTime() + windowMs);
+      record.count = 0;
+    }
+
+    if (record.count >= limit) {
+      const remainingMins = Math.ceil((record.resetTime.getTime() - now.getTime()) / 60000);
+      return res.status(429).json({
+        message: `Rate limit exceeded. Please try again in ${remainingMins} minutes. Upgrade to Pro for 10x higher limits.`,
+      });
+    }
+
+    record.count++;
+    await record.save();
+
+    res.setHeader('X-RateLimit-Limit', limit);
+    res.setHeader('X-RateLimit-Remaining', limit - record.count);
+    res.setHeader('X-RateLimit-Reset', record.resetTime.toISOString());
+    next();
+  } catch (error) {
+    console.error('[RateLimiter] Database check failed, falling back to non-limited:', error.message);
+    // On db failure, fall back to letting request proceed to avoid downtime
+    next();
   }
-
-  const record = rateLimitStore[userId];
-
-  // Reset window if expired
-  if (now > record.resetTime) {
-    record.resetTime = now + windowMs;
-    record.count = 0;
-  }
-
-  if (record.count >= limit) {
-    const remainingMins = Math.ceil((record.resetTime - now) / 60000);
-    return res.status(429).json({
-      message: `Rate limit exceeded. Please try again in ${remainingMins} minutes. Upgrade to Pro for 10x higher limits.`,
-    });
-  }
-
-  record.count++;
-  res.setHeader('X-RateLimit-Limit', limit);
-  res.setHeader('X-RateLimit-Remaining', limit - record.count);
-  res.setHeader('X-RateLimit-Reset', new Date(record.resetTime).toISOString());
-  next();
 };
 
 const normalizeSkill = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -91,19 +120,12 @@ const normalizeParsedResume = (result, rawText) => {
 // ─── POST /api/ai/improve-summary ─────────────────────────────────────────────
 // Body: { summary: string, jobTitle: string }
 // Returns: { improvedSummary: string, tips: string[] }
-router.post('/improve-summary', protect, aiRateLimiter, async (req, res) => {
+router.post('/improve-summary', protect, aiRateLimiter, validateBody(improveSummarySchema), async (req, res) => {
   try {
     const { summary, jobTitle } = req.body;
 
-    if (!summary || typeof summary !== 'string' || summary.trim().length === 0) {
-      return res.status(400).json({ message: 'summary is required and must be a non-empty string' });
-    }
-    if (!jobTitle || typeof jobTitle !== 'string' || jobTitle.trim().length === 0) {
-      return res.status(400).json({ message: 'jobTitle is required and must be a non-empty string' });
-    }
-
     const prompt = buildResumeSummaryPrompt({ summary: summary.trim(), jobTitle: jobTitle.trim() });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, resumeSummarySchema);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -115,19 +137,12 @@ router.post('/improve-summary', protect, aiRateLimiter, async (req, res) => {
 // ─── POST /api/ai/ats-analysis ────────────────────────────────────────────────
 // Body: { resumeData: { fullName, title, summary, skills }, jobDescription: string }
 // Returns: { atsScore: number, missingKeywords: string[], suggestions: string[], overallFeedback: string }
-router.post('/ats-analysis', protect, aiRateLimiter, async (req, res) => {
+router.post('/ats-analysis', protect, aiRateLimiter, validateBody(atsAnalysisValidationSchema), async (req, res) => {
   try {
     const { resumeData, jobDescription } = req.body;
 
-    if (!resumeData || typeof resumeData !== 'object') {
-      return res.status(400).json({ message: 'resumeData is required and must be an object' });
-    }
-    if (!jobDescription || typeof jobDescription !== 'string' || jobDescription.trim().length === 0) {
-      return res.status(400).json({ message: 'jobDescription is required and must be a non-empty string' });
-    }
-
     const prompt = buildAtsAnalysisPrompt({ resumeData, jobDescription: jobDescription.trim() });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, atsAnalysisSchema);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -139,13 +154,9 @@ router.post('/ats-analysis', protect, aiRateLimiter, async (req, res) => {
 // ─── POST /api/ai/suggest-skills ──────────────────────────────────────────────
 // Body: { currentSkills: string[] | string, jobTitle: string }
 // Returns: { suggestedSkills: { skill: string, why: string }[], reason: string }
-router.post('/suggest-skills', protect, aiRateLimiter, async (req, res) => {
+router.post('/suggest-skills', protect, aiRateLimiter, validateBody(suggestSkillsSchema), async (req, res) => {
   try {
     const { currentSkills, jobTitle } = req.body;
-
-    if (!jobTitle || typeof jobTitle !== 'string' || jobTitle.trim().length === 0) {
-      return res.status(400).json({ message: 'jobTitle is required and must be a non-empty string' });
-    }
 
     // Accept either an array or a comma-separated string
     let skillsArray = [];
@@ -156,7 +167,7 @@ router.post('/suggest-skills', protect, aiRateLimiter, async (req, res) => {
     }
 
     const prompt = buildSkillsSuggestionPrompt({ currentSkills: skillsArray, jobTitle: jobTitle.trim() });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, skillsSuggestionSchema);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -168,16 +179,12 @@ router.post('/suggest-skills', protect, aiRateLimiter, async (req, res) => {
 // ─── POST /api/ai/analyze-jd ────────────────────────────────────────────────
 // Body: { jobDescription: string }
 // Returns: { hardSkills: string[], softSkills: string[], actionVerbs: string[], domain: string[], seniorityLevel: string[] }
-router.post('/analyze-jd', protect, requirePro, aiRateLimiter, async (req, res) => {
+router.post('/analyze-jd', protect, requirePro, aiRateLimiter, validateBody(analyzeJdSchema), async (req, res) => {
   try {
     const { jobDescription } = req.body;
 
-    if (!jobDescription || typeof jobDescription !== 'string' || jobDescription.trim().length === 0) {
-      return res.status(400).json({ message: 'jobDescription is required and must be a non-empty string' });
-    }
-
     const prompt = buildJdAnalysisPrompt({ jobDescription: jobDescription.trim() });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, jdAnalysisSchema);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -189,13 +196,9 @@ router.post('/analyze-jd', protect, requirePro, aiRateLimiter, async (req, res) 
 // ─── POST /api/ai/rewrite-bullet ────────────────────────────────────────────
 // Body: { originalBullet: string, jobDescription?: string, targetKeywords?: string[] | string }
 // Returns: { rewrittenBullet: string, keywordsUsed: string[], improvementNotes: string[] }
-router.post('/rewrite-bullet', protect, requirePro, aiRateLimiter, async (req, res) => {
+router.post('/rewrite-bullet', protect, requirePro, aiRateLimiter, validateBody(rewriteBulletSchema), async (req, res) => {
   try {
     const { originalBullet, jobDescription, targetKeywords } = req.body;
-
-    if (!originalBullet || typeof originalBullet !== 'string' || originalBullet.trim().length === 0) {
-      return res.status(400).json({ message: 'originalBullet is required and must be a non-empty string' });
-    }
 
     let keywordsArray = [];
     if (Array.isArray(targetKeywords)) {
@@ -209,7 +212,7 @@ router.post('/rewrite-bullet', protect, requirePro, aiRateLimiter, async (req, r
       jobDescription: typeof jobDescription === 'string' ? jobDescription.trim() : '',
       targetKeywords: keywordsArray,
     });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, bulletRewriteSchema);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -239,7 +242,7 @@ router.post('/parse-resume', protect, upload.single('resume'), aiRateLimiter, as
     }
 
     const prompt = buildResumeParsePrompt({ resumeText: rawText.slice(0, MAX_RESUME_TEXT_CHARS) });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, resumeParseSchema);
     const normalized = normalizeParsedResume(result, rawText);
 
     return res.status(200).json(normalized);
@@ -255,19 +258,12 @@ router.post('/parse-resume', protect, upload.single('resume'), aiRateLimiter, as
 // ─── POST /api/ai/generate-cover-letter ─────────────────────────────────────
 // Body: { resumeData: { fullName, title, summary, skills }, jobDescription: string }
 // Returns: { coverLetter: string }
-router.post('/generate-cover-letter', protect, requirePro, aiRateLimiter, async (req, res) => {
+router.post('/generate-cover-letter', protect, requirePro, aiRateLimiter, validateBody(generateCoverLetterSchema), async (req, res) => {
   try {
     const { resumeData, jobDescription } = req.body;
 
-    if (!resumeData || typeof resumeData !== 'object') {
-      return res.status(400).json({ message: 'resumeData is required and must be an object' });
-    }
-    if (!jobDescription || typeof jobDescription !== 'string' || jobDescription.trim().length === 0) {
-      return res.status(400).json({ message: 'jobDescription is required and must be a non-empty string' });
-    }
-
     const prompt = buildCoverLetterPrompt({ resumeData, jobDescription });
-    const result = await generateJSON(prompt);
+    const result = await generateJSON(prompt, coverLetterSchema);
 
     return res.status(200).json(result);
   } catch (error) {

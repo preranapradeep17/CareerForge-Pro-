@@ -465,24 +465,95 @@ const buildResumeHtml = (resume) => {
   `;
 };
 
+const crypto = require('crypto');
+const PdfCache = require('../models/PdfCache');
+
+const getResumeHash = (resume) => {
+  const normalized = normalizeResume(resume);
+  const serialized = JSON.stringify({
+    fullName: normalized.fullName,
+    title: normalized.title,
+    summary: normalized.summary,
+    email: normalized.email,
+    phone: normalized.phone,
+    location: normalized.location,
+    skills: normalized.skills,
+    template: normalized.template,
+    experience: normalized.experience.map(e => ({
+      company: e.company,
+      role: e.role,
+      location: e.location,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      currentlyWorking: e.currentlyWorking,
+      description: e.description
+    })),
+    education: normalized.education.map(ed => ({
+      institution: ed.institution,
+      degree: ed.degree,
+      fieldOfStudy: ed.fieldOfStudy,
+      startDate: ed.startDate,
+      endDate: ed.endDate,
+      grade: ed.grade
+    })),
+    projects: normalized.projects.map(p => ({
+      title: p.title,
+      description: p.description,
+      technologies: p.technologies,
+      link: p.link
+    }))
+  });
+  
+  return crypto.createHash('sha256').update(serialized).digest('hex');
+};
+
 const generateResumePdfBuffer = async (resume) => {
+  const hash = getResumeHash(resume);
+  
+  try {
+    const cached = await PdfCache.findOne({ hash });
+    if (cached) {
+      console.log('[PDF Service] Serving PDF from Cache (Hash Hit):', hash);
+      return cached.pdfBuffer;
+    }
+  } catch (err) {
+    console.error('[PDF Service] Cache lookup failed, proceeding to compile:', err.message);
+  }
+
   let browser;
 
   try {
     const puppeteer = require('puppeteer');
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ],
     });
     const page = await browser.newPage();
     await page.setContent(buildResumeHtml(resume), { waitUntil: 'networkidle0' });
     await page.emulateMediaType('screen');
 
-    return await page.pdf({
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
     });
+
+    try {
+      await PdfCache.create({ hash, pdfBuffer });
+      console.log('[PDF Service] PDF stored to Cache (Hash Cached):', hash);
+    } catch (cacheErr) {
+      console.error('[PDF Service] Saving PDF to cache failed:', cacheErr.message);
+    }
+
+    return pdfBuffer;
   } catch (error) {
     if (error.code === 'MODULE_NOT_FOUND' || /Cannot find module 'puppeteer'/.test(error.message)) {
       const dependencyError = new Error('Puppeteer is not installed on the server');
