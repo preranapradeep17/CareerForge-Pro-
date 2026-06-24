@@ -598,11 +598,22 @@ label {
   gap: 1rem;
 }
 
-.builder-form,
+.builder-form {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
 .builder-preview {
   display: grid;
   gap: 1rem;
   align-content: start;
+  position: sticky;
+  top: 1.5rem;
+  max-height: 86vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  scrollbar-width: thin;
 }
 
 .ai-shell {

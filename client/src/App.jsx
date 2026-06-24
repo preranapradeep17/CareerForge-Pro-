@@ -44,6 +44,7 @@ import AIAssistantPage from './pages/AIAssistantPage';
 import TemplatesPage from './pages/TemplatesPage';
 import CoverLetterPage from './pages/CoverLetterPage';
 import SettingsPage from './pages/SettingsPage';
+import SharedResumePage from './pages/SharedResumePage';
 
 // Import Components
 import { ProtectedRoute, ProtectedLayout } from './components/ProtectedLayout';
@@ -98,6 +99,10 @@ function AppRoutes() {
       <Route
         path="/register"
         element={<RegisterPage app={app} />}
+      />
+      <Route
+        path="/share/:shareId"
+        element={<SharedResumePage />}
       />
       <Route element={<ProtectedRoute isLoggedIn={app.isLoggedIn} />}>
         <Route
@@ -1083,6 +1088,149 @@ function useCareerForgeApp() {
     dispatch(setProjects(result));
   };
 
+  const handleRenameResume = async (id, newName) => {
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to rename resume');
+      toast.success('Resume renamed successfully');
+      fetchResumes();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleDuplicateResume = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}/resumes/${id}/duplicate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.upgradeRequired) {
+          setIsUpgradeModalOpen(true);
+        }
+        throw new Error(data.message || 'Failed to duplicate resume');
+      }
+      toast.success('Resume duplicated successfully');
+      fetchResumes();
+      fetchProfile(token, { silent: true }); // refresh resume count
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleShareResume = async (resume) => {
+    try {
+      const newSharedState = !resume.isShared;
+      let newShareId = resume.shareId;
+      if (newSharedState && !newShareId) {
+        newShareId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      }
+
+      const response = await fetch(`${API_BASE}/resumes/${resume._id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isShared: newSharedState, shareId: newShareId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to toggle sharing');
+      
+      if (newSharedState) {
+        const shareLink = `${window.location.origin}/share/${newShareId}`;
+        await navigator.clipboard.writeText(shareLink);
+        toast.success('Public sharing enabled! Link copied to clipboard.');
+      } else {
+        toast.success('Public sharing disabled.');
+      }
+      fetchResumes();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleUpdateProfile = async (profileData) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/protected/update-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to update profile');
+      dispatch(setUser(data.user));
+      toast.success('Profile updated successfully');
+      return true;
+    } catch (error) {
+      toast.error(error.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (passwordData) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/protected/update-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(passwordData),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to update password');
+      toast.success('Password updated successfully');
+      return true;
+    } catch (error) {
+      toast.error(error.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/protected/delete-account`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to delete account');
+      toast.success('Your account has been deleted.');
+      handleLogout({ silent: true });
+      return true;
+    } catch (error) {
+      toast.error(error.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     user,
     token,
@@ -1164,6 +1312,12 @@ function useCareerForgeApp() {
     handleRestoreVersion,
     handleDeleteVersion,
     resumeId,
+    handleRenameResume,
+    handleDuplicateResume,
+    handleShareResume,
+    handleUpdateProfile,
+    handleUpdatePassword,
+    handleDeleteAccount,
   };
 }
 

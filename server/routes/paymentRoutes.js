@@ -63,7 +63,6 @@ const ensureStripeCustomer = async (stripe, user) => {
 // ─── POST /api/payments/create-checkout-session ──────────────────────────────
 router.post('/create-checkout-session', protect, async (req, res) => {
   try {
-    const stripe = getStripe();
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -74,6 +73,23 @@ router.post('/create-checkout-session', protect, async (req, res) => {
     }
 
     const clientUrl = normalizeClientUrl();
+
+    // Check if Stripe key is placeholder
+    const isMock = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.includes('placeholder');
+    if (isMock) {
+      console.log('[Stripe Simulation] Mocking checkout session for user:', user.email);
+      user.plan = 'pro';
+      user.planStatus = 'active';
+      user.planCurrentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      await user.save();
+
+      return res.status(200).json({
+        id: 'mock_session_id',
+        url: `${clientUrl}/dashboard?payment=success&session_id=mock_session_id`
+      });
+    }
+
+    const stripe = getStripe();
     const customerId = await ensureStripeCustomer(stripe, user);
 
     const session = await stripe.checkout.sessions.create({
@@ -99,18 +115,27 @@ router.post('/create-checkout-session', protect, async (req, res) => {
     return res.status(200).json({ id: session.id, url: session.url });
   } catch (error) {
     console.error('[Stripe] Checkout Session creation failed:', error.message);
-    return res.status(error.statusCode || 500).json({ message: 'Failed to create checkout session', error: error.message });
+    return res.status(error.statusCode || 500).json({ message: 'Failed to create checkout session. Please check your Stripe configurations.', error: error.message });
   }
 });
 
 router.post('/billing-portal', protect, async (req, res) => {
   try {
-    const stripe = getStripe();
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Check if Stripe key is placeholder
+    const isMock = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.includes('placeholder');
+    if (isMock) {
+      console.log('[Stripe Simulation] Mocking billing portal session for user:', user.email);
+      return res.status(200).json({
+        url: `${normalizeClientUrl()}/settings?billing=mock`
+      });
+    }
+
+    const stripe = getStripe();
     if (!user.stripeCustomerId) {
       return res.status(400).json({ message: 'No Stripe billing profile found for this account' });
     }

@@ -96,6 +96,14 @@ const resumeSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    isShared: {
+      type: Boolean,
+      default: false,
+    },
+    shareId: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,

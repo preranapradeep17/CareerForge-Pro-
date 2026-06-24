@@ -160,8 +160,32 @@ router.post('/', protect, async (req, res) => {
 
 router.get('/', protect, async (req, res) => {
   try {
-    const resumes = await Resume.find({ user: req.user.id }).sort({ updatedAt: -1 });
-    return res.status(200).json({ resumes });
+    const resumes = await Resume.find({ user: req.user.id }).sort({ updatedAt: -1 }).lean();
+    
+    // Attach previous ATS score from version history
+    const resumesWithTrend = await Promise.all(
+      resumes.map(async (resume) => {
+        const versions = await ResumeVersion.find({ resume: resume._id })
+          .sort({ createdAt: -1 })
+          .select('atsScore')
+          .limit(2)
+          .lean();
+
+        let lastAtsScore = null;
+        if (versions.length > 1) {
+          lastAtsScore = versions[1].atsScore;
+        } else if (versions.length === 1) {
+          lastAtsScore = versions[0].atsScore;
+        }
+
+        return {
+          ...resume,
+          lastAtsScore,
+        };
+      })
+    );
+
+    return res.status(200).json({ resumes: resumesWithTrend });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch resumes', error: error.message });
   }
@@ -402,6 +426,117 @@ router.delete('/:id/versions/:versionId', protect, async (req, res) => {
     return res.status(200).json({ message: 'Version snapshot deleted successfully' });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to delete resume version', error: error.message });
+  }
+});
+
+// ─── PATCH /api/resumes/:id ──────────────────────────────────────────────────
+// Allows partial updates to a resume (e.g. rename, toggling share status, etc.)
+router.patch('/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid resume id' });
+    }
+
+    const resume = await Resume.findOne({ _id: id, user: req.user.id });
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    const allowedUpdates = [
+      'name',
+      'isShared',
+      'shareId',
+      'personalInfo',
+      'experience',
+      'education',
+      'skills',
+      'projects',
+      'atsScore',
+      'template',
+      'targetJD',
+    ];
+
+    for (const key of allowedUpdates) {
+      if (req.body[key] !== undefined) {
+        resume[key] = req.body[key];
+      }
+    }
+
+    await resume.save();
+    await saveAutomaticVersion(resume);
+
+    return res.status(200).json({ resume });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to update resume properties', error: error.message });
+  }
+});
+
+// ─── POST /api/resumes/:id/duplicate ──────────────────────────────────────────
+// Clones a resume and saves it as a new copy
+router.post('/:id/duplicate', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid resume id' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.plan === 'free' && user.resumeCount >= 1) {
+      return res.status(403).json({
+        message: 'Free plan limit reached. You can only create 1 resume on the Starter plan. Upgrade to Pro for unlimited resumes.',
+        upgradeRequired: true,
+      });
+    }
+
+    const sourceResume = await Resume.findOne({ _id: id, user: req.user.id });
+    if (!sourceResume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    const duplicatedResume = await Resume.create({
+      user: req.user.id,
+      name: `${sourceResume.name || 'Untitled Resume'} (Copy)`,
+      personalInfo: sourceResume.personalInfo,
+      experience: sourceResume.experience || [],
+      education: sourceResume.education || [],
+      skills: sourceResume.skills || [],
+      projects: sourceResume.projects || [],
+      atsScore: sourceResume.atsScore ?? 0,
+      template: sourceResume.template || 'classic',
+      targetJD: sourceResume.targetJD || '',
+    });
+
+    await User.findByIdAndUpdate(req.user.id, { $inc: { resumeCount: 1 } });
+    await saveAutomaticVersion(duplicatedResume);
+
+    return res.status(201).json({ resume: duplicatedResume });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to duplicate resume', error: error.message });
+  }
+});
+
+// ─── GET /api/resumes/share/:shareId ──────────────────────────────────────────
+// Public endpoint to retrieve a shared resume (completely unprotected)
+router.get('/share/:shareId', async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    if (!shareId) {
+      return res.status(400).json({ message: 'shareId is required' });
+    }
+
+    const resume = await Resume.findOne({ shareId, isShared: true });
+    if (!resume) {
+      return res.status(404).json({ message: 'Shared resume not found or sharing disabled' });
+    }
+
+    return res.status(200).json({ resume });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to fetch shared resume', error: error.message });
   }
 });
 

@@ -5,6 +5,56 @@ import AtsGauge from '../components/AtsGauge';
 import VersionHistorySection from '../components/VersionHistorySection';
 import { TEMPLATE_LIST } from '../templates';
 
+const SKILL_SUGGESTIONS_BY_TITLE = {
+  'frontend': ['React', 'JavaScript', 'TypeScript', 'Redux', 'Tailwind CSS', 'HTML5', 'CSS3', 'Vite', 'Next.js', 'Jest'],
+  'backend': ['Node.js', 'Express', 'MongoDB', 'PostgreSQL', 'SQL', 'REST API', 'GraphQL', 'Docker', 'Python', 'Redis'],
+  'fullstack': ['React', 'Node.js', 'Express', 'MongoDB', 'JavaScript', 'TypeScript', 'Redux', 'SQL', 'Git'],
+  'software': ['Java', 'Python', 'C++', 'Git', 'Data Structures', 'Algorithms', 'Docker', 'SQL', 'AWS'],
+  'data': ['Python', 'SQL', 'Machine Learning', 'Pandas', 'NumPy', 'TensorFlow', 'Data Analysis', 'Tableau', 'R'],
+  'product': ['Product Strategy', 'Roadmapping', 'Agile', 'Jira', 'User Research', 'A/B Testing', 'Analytics', 'Figma'],
+  'ui': ['Figma', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research', 'CSS', 'Tailwind CSS', 'Adobe XD'],
+  'ux': ['Figma', 'UI/UX Design', 'Wireframing', 'Prototyping', 'User Research', 'CSS', 'Tailwind CSS', 'Adobe XD'],
+};
+
+function AutoSaveIndicator({ isSaving, saveError, lastSavedAt }) {
+  const [text, setText] = useState('Ready to save');
+
+  useEffect(() => {
+    if (isSaving) {
+      setText('Auto-saving...');
+      return;
+    }
+    if (saveError) {
+      setText(`Error: ${saveError}`);
+      return;
+    }
+    if (!lastSavedAt) {
+      setText('Ready to save');
+      return;
+    }
+
+    const updateText = () => {
+      const diffMs = Date.now() - new Date(lastSavedAt).getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+
+      if (diffSec < 5) {
+        setText('Saved just now');
+      } else if (diffSec < 60) {
+        setText(`Saved ${diffSec} seconds ago`);
+      } else {
+        const diffMin = Math.floor(diffSec / 60);
+        setText(`Saved ${diffMin} minute${diffMin > 1 ? 's' : ''} ago`);
+      }
+    };
+
+    updateText();
+    const interval = setInterval(updateText, 5000);
+    return () => clearInterval(interval);
+  }, [isSaving, saveError, lastSavedAt]);
+
+  return <span>{text}</span>;
+}
+
 export default function ResumeBuilderPage({ app }) {
   const { id } = useParams();
   const [draggedItem, setDraggedItem] = useState(null); // { index, type }
@@ -80,13 +130,11 @@ export default function ResumeBuilderPage({ app }) {
             <div className="surface-card__header">
               <h3>Resume Content</h3>
               <span className="status-pill">
-                {app.isSaving
-                  ? 'Auto-saving...'
-                  : app.saveError
-                    ? `Error: ${app.saveError}`
-                    : app.lastSavedAt
-                      ? `Saved at ${app.lastSavedAt.toLocaleTimeString()}`
-                      : 'Ready to save'}
+                <AutoSaveIndicator
+                  isSaving={app.isSaving}
+                  saveError={app.saveError}
+                  lastSavedAt={app.lastSavedAt}
+                />
               </span>
             </div>
 
@@ -194,6 +242,66 @@ export default function ResumeBuilderPage({ app }) {
                 onChange={app.handleResumeChange}
                 placeholder="React, Node.js, MongoDB"
               />
+              {/* Skills Suggestions */}
+              {(() => {
+                const title = (app.resumeData.title || '').toLowerCase();
+                let matchingKey = '';
+                if (title.includes('front')) matchingKey = 'frontend';
+                else if (title.includes('back')) matchingKey = 'backend';
+                else if (title.includes('full')) matchingKey = 'fullstack';
+                else if (title.includes('data')) matchingKey = 'data';
+                else if (title.includes('product')) matchingKey = 'product';
+                else if (title.includes('ui') || title.includes('ux') || title.includes('design')) matchingKey = 'ui';
+                else if (title.includes('soft') || title.includes('engin')) matchingKey = 'software';
+
+                if (!matchingKey) return null;
+
+                const suggestions = SKILL_SUGGESTIONS_BY_TITLE[matchingKey] || [];
+                const currentSkills = (app.resumeData.skills || '')
+                  .split(',')
+                  .map((s) => s.trim().toLowerCase())
+                  .filter(Boolean);
+
+                const missingSuggestions = suggestions.filter(
+                  (s) => !currentSkills.includes(s.toLowerCase())
+                );
+
+                if (missingSuggestions.length === 0) return null;
+
+                return (
+                  <div className="skills-suggestions-container" style={{ marginTop: '0.6rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--muted)', display: 'block', marginBottom: '0.35rem' }}>
+                      Suggested skills for {matchingKey} role:
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      {missingSuggestions.map((skill) => (
+                        <button
+                          key={skill}
+                          type="button"
+                          className="chip chip--add"
+                          style={{ cursor: 'pointer', fontSize: '0.74rem', padding: '0.2rem 0.6rem', minHeight: 'auto', border: 0 }}
+                          onClick={() => {
+                            const current = (app.resumeData.skills || '')
+                              .split(',')
+                              .map((entry) => entry.trim())
+                              .filter(Boolean);
+                            if (!current.includes(skill)) {
+                              app.handleResumeChange({
+                                target: {
+                                  name: 'skills',
+                                  value: [...current, skill].join(', ')
+                                }
+                              });
+                            }
+                          }}
+                        >
+                          + {skill}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </label>
 
             {/* Experience Builder */}
